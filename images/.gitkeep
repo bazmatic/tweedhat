@@ -1,0 +1,2 @@
+# This file ensures that the images folder is tracked by git.
+# Downloaded images from tweets will be stored in this directory for AI processing. 

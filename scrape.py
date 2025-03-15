@@ -5,6 +5,8 @@ import argparse
 import logging
 import getpass
 import random
+import re
+import requests
 from pathlib import Path
 from datetime import datetime
 from selenium import webdriver
@@ -13,9 +15,10 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException, StaleElementReferenceException
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
+from webdriver_manager.chrome import ChromeDriverManager
 
 # Set up logging
 logging.basicConfig(
@@ -27,6 +30,14 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Define folder paths
+TWEETS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tweets")
+IMAGES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
+
+# Create folders if they don't exist
+os.makedirs(TWEETS_FOLDER, exist_ok=True)
+os.makedirs(IMAGES_FOLDER, exist_ok=True)
 
 class TweetScraper:
     def __init__(self, username, headless=True, max_tweets=None, email=None, password=None, use_profile=True, profile_dir=None, user_agent=None):
@@ -911,12 +922,41 @@ class TweetScraper:
             
             # Get media links (images, videos)
             media_links = []
+            has_video = False
+            video_preview_url = None
             try:
+                # Check for images
                 media_elements = tweet_element.find_elements(By.CSS_SELECTOR, "img[src*='media']")
                 for media in media_elements:
                     src = media.get_attribute("src")
                     if src and "profile" not in src and src not in media_links:
                         media_links.append(src)
+                
+                # Check for videos
+                video_elements = tweet_element.find_elements(By.CSS_SELECTOR, "div[data-testid='videoPlayer']")
+                if video_elements:
+                    has_video = True
+                    # Try to find video preview image
+                    try:
+                        # Look for the video thumbnail/preview image
+                        video_preview = video_elements[0].find_element(By.CSS_SELECTOR, "img")
+                        if video_preview:
+                            video_preview_url = video_preview.get_attribute("src")
+                            if video_preview_url:
+                                # Convert relative URLs to absolute URLs if needed
+                                if video_preview_url.startswith('/'):
+                                    base_url = self.driver.current_url.split('/status')[0]
+                                    video_preview_url = f"{base_url}{video_preview_url}"
+                                
+                                # First, remove any existing entry of this URL without the prefix
+                                if video_preview_url in media_links:
+                                    media_links.remove(video_preview_url)
+                                # Add with the prefix
+                                media_links.append(f"video_preview:{video_preview_url}")
+                                logger.debug(f"Found video preview image: {video_preview_url}")
+                    except NoSuchElementException:
+                        logger.debug("Could not find video preview image")
+                    
                 logger.debug(f"Extracted {len(media_links)} media links")
             except Exception as e:
                 logger.warning(f"Error extracting media links: {e}")
@@ -927,7 +967,11 @@ class TweetScraper:
                 "text": text,
                 "timestamp": timestamp,
                 "stats": stats,
-                "media": media_links
+                "media": media_links,
+                "has_video": has_video,
+                "has_media": len(media_links) > 0 or has_video,
+                "video_preview_url": video_preview_url,
+                "source": "x.com"
             }
         except Exception as e:
             logger.error(f"Error extracting tweet data: {e}", exc_info=True)
@@ -996,15 +1040,83 @@ class TweetScraper:
             
             # Get media links
             media_links = []
+            video_preview_url = None
             try:
+                # Try multiple selectors to find images
+                # First try the original selector
                 media_elements = tweet_element.find_elements(By.CSS_SELECTOR, ".still-image")
+                
+                # If no images found, try alternative selectors
+                if not media_elements:
+                    media_elements = tweet_element.find_elements(By.CSS_SELECTOR, ".attachment img")
+                
+                if not media_elements:
+                    media_elements = tweet_element.find_elements(By.CSS_SELECTOR, ".media-image img")
+                
+                if not media_elements:
+                    media_elements = tweet_element.find_elements(By.CSS_SELECTOR, ".tweet-body img:not(.emoji):not(.profile-pic)")
+                
+                # Extract src attributes from found elements
                 for media in media_elements:
                     src = media.get_attribute("src")
-                    if src:
+                    if src and "profile" not in src and src not in media_links:
+                        # Convert relative URLs to absolute URLs if needed
+                        if src.startswith('/'):
+                            base_url = self.driver.current_url.split('/status')[0]
+                            src = f"{base_url}{src}"
                         media_links.append(src)
+                
+                # Also check for video elements
+                video_elements = tweet_element.find_elements(By.CSS_SELECTOR, ".video-container")
+                if video_elements:
+                    # Mark that this tweet has a video
+                    has_video = True
+                    
+                    # Try to find video preview image
+                    try:
+                        # Look for the video thumbnail/preview image
+                        video_preview = video_elements[0].find_element(By.CSS_SELECTOR, "img")
+                        if video_preview:
+                            video_preview_url = video_preview.get_attribute("src")
+                            if video_preview_url:
+                                # Convert relative URLs to absolute URLs if needed
+                                if video_preview_url.startswith('/'):
+                                    base_url = self.driver.current_url.split('/status')[0]
+                                    video_preview_url = f"{base_url}{video_preview_url}"
+                                
+                                # First, remove any existing entry of this URL without the prefix
+                                if video_preview_url in media_links:
+                                    media_links.remove(video_preview_url)
+                                # Add with the prefix
+                                media_links.append(f"video_preview:{video_preview_url}")
+                                logger.debug(f"Found video preview image: {video_preview_url}")
+                    except NoSuchElementException:
+                        # Try alternative selectors for video thumbnails
+                        try:
+                            video_preview = video_elements[0].find_element(By.CSS_SELECTOR, ".poster")
+                            if video_preview:
+                                video_preview_url = video_preview.get_attribute("src")
+                                if video_preview_url:
+                                    # Convert relative URLs to absolute URLs if needed
+                                    if video_preview_url.startswith('/'):
+                                        base_url = self.driver.current_url.split('/status')[0]
+                                        video_preview_url = f"{base_url}{video_preview_url}"
+                                    
+                                    # First, remove any existing entry of this URL without the prefix
+                                    if video_preview_url in media_links:
+                                        media_links.remove(video_preview_url)
+                                    # Add with the prefix
+                                    media_links.append(f"video_preview:{video_preview_url}")
+                                    logger.debug(f"Found video preview image: {video_preview_url}")
+                        except NoSuchElementException:
+                            logger.debug("Could not find video preview image")
+                else:
+                    has_video = False
+                
                 logger.debug(f"Extracted {len(media_links)} media links from nitter")
             except Exception as e:
                 logger.warning(f"Error extracting media links from nitter: {e}")
+                has_video = False
             
             return {
                 "id": tweet_id,
@@ -1013,27 +1125,43 @@ class TweetScraper:
                 "timestamp": timestamp,
                 "stats": stats,
                 "media": media_links,
+                "has_video": has_video,
+                "has_media": len(media_links) > 0 or has_video,
+                "video_preview_url": video_preview_url,
                 "source": "nitter"
             }
         except Exception as e:
             logger.error(f"Error extracting tweet data from nitter: {e}", exc_info=True)
             return None
     
-    def save_to_json(self, tweets, filename=None):
+    def save_tweets(self, tweets, output_file=None):
         """
         Save tweets to a JSON file.
         
         Args:
             tweets (list): List of tweet dictionaries
-            filename (str, optional): Output filename
-        
+            output_file (str, optional): Output file path
+            
         Returns:
             str: Path to the saved file
         """
-        if not filename:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{self.username}_tweets_{timestamp}.json"
+        if not tweets:
+            logger.warning("No tweets to save")
+            return None
         
+        # Generate output filename if not provided
+        if not output_file:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_file = f"{self.username}_tweets_{timestamp}.json"
+        
+        # Ensure the output file is in the tweets folder
+        if not os.path.isabs(output_file):
+            output_file = os.path.join(TWEETS_FOLDER, output_file)
+        
+        # Create the tweets folder if it doesn't exist
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        
+        # Prepare data
         data = {
             "username": self.username,
             "scraped_at": datetime.now().isoformat(),
@@ -1041,15 +1169,15 @@ class TweetScraper:
             "tweets": tweets
         }
         
-        logger.info(f"Saving {len(tweets)} tweets to {filename}")
+        # Save to file
         try:
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            logger.info(f"Successfully saved tweets to {filename}")
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            logger.info(f"Successfully saved tweets to {output_file}")
+            return output_file
         except Exception as e:
-            logger.error(f"Error saving tweets to file: {e}", exc_info=True)
-        
-        return filename
+            logger.error(f"Error saving tweets: {e}", exc_info=True)
+            return None
     
     def close(self):
         """Close the WebDriver"""
@@ -1097,7 +1225,7 @@ def main():
     try:
         tweets = scraper.scrape_tweets()
         if tweets:
-            scraper.save_to_json(tweets, args.output)
+            scraper.save_tweets(tweets, args.output)
         else:
             logger.warning("No tweets were scraped.")
     except Exception as e:

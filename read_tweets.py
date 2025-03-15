@@ -15,12 +15,21 @@ from mutagen.mp3 import MP3
 import re
 from dotenv import load_dotenv
 
+# Import AI image describer
+try:
+    from ai_integration import AIImageDescriber
+    AI_INTEGRATION_AVAILABLE = True
+except ImportError:
+    AI_INTEGRATION_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("AI integration module not available. Image description will be disabled.")
+
 # Load environment variables from .env file
 load_dotenv()
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("tweet_reader.log"),
@@ -32,8 +41,18 @@ logger = logging.getLogger(__name__)
 # Get ElevenLabs API key from environment variable
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 
+# Define folder paths
+TWEETS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tweets")
+IMAGES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
+AUDIO_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tweet_audio")
+
+# Create folders if they don't exist
+os.makedirs(TWEETS_FOLDER, exist_ok=True)
+os.makedirs(IMAGES_FOLDER, exist_ok=True)
+os.makedirs(AUDIO_FOLDER, exist_ok=True)
+
 class TweetReader:
-    def __init__(self, json_file, api_key=None, voice_id="21m00Tcm4TlvDq8ikWAM", save_audio=False, output_dir=None):
+    def __init__(self, json_file, api_key=None, voice_id="21m00Tcm4TlvDq8ikWAM", save_audio=False, output_dir=None, describe_images=False):
         """
         Initialize the TweetReader.
         
@@ -43,25 +62,55 @@ class TweetReader:
             voice_id (str): ID of the voice to use (default is "Rachel")
             save_audio (bool): Whether to save audio files
             output_dir (str): Directory to save audio files
+            describe_images (bool): Whether to use AI to describe images in tweets
         """
-        self.json_file = json_file
+        # If json_file doesn't include the full path and is not in the current directory,
+        # check if it's in the tweets folder
+        if not os.path.isabs(json_file) and not os.path.exists(json_file):
+            tweets_path = os.path.join(TWEETS_FOLDER, json_file)
+            if os.path.exists(tweets_path):
+                self.json_file = tweets_path
+                logger.info(f"Found tweet file in tweets folder: {tweets_path}")
+            else:
+                self.json_file = json_file
+        else:
+            self.json_file = json_file
+            
         self.api_key = api_key or ELEVENLABS_API_KEY  # Use environment variable if none provided
         self.voice_id = voice_id
         self.save_audio = save_audio
         self.api_url = "https://api.elevenlabs.io/v1"
+        self.describe_images = describe_images
+        
+        # Initialize AI image describer if enabled
+        if self.describe_images:
+            if AI_INTEGRATION_AVAILABLE:
+                try:
+                    self.image_describer = AIImageDescriber(images_folder=IMAGES_FOLDER)
+                    logger.info("AI image description enabled")
+                except Exception as e:
+                    logger.error(f"Error initializing AI image describer: {e}")
+                    self.describe_images = False
+                    self.image_describer = None
+            else:
+                logger.warning("AI integration not available. Image description disabled.")
+                self.describe_images = False
+                self.image_describer = None
+        else:
+            self.image_describer = None
         
         # Set up output directory
         if save_audio:
             if output_dir:
                 self.output_dir = Path(output_dir)
             else:
-                self.output_dir = Path("tweet_audio")
+                self.output_dir = Path(AUDIO_FOLDER)
             
             # Create output directory if it doesn't exist
             os.makedirs(self.output_dir, exist_ok=True)
             logger.info(f"Audio files will be saved to {self.output_dir}")
         
-        logger.info(f"Initializing TweetReader for file: {json_file}")
+        logger.info(f"Initializing TweetReader for file: {self.json_file}")
         logger.info(f"Using voice ID: {voice_id}")
         logger.info(f"Save audio: {save_audio}")
         
@@ -136,6 +185,14 @@ class TweetReader:
         has_video = tweet.get('has_video', False)
         has_media = tweet.get('has_media', False)
         
+        # Get media links from either 'media_links' or 'media' field
+        media_links = tweet.get('media_links', [])
+        if not media_links and 'media' in tweet:
+            media_links = tweet.get('media', [])
+        
+        # Debug log to see what media links we have
+        logger.debug(f"Media links: {media_links}")
+        
         # Check for video-related text patterns
         video_patterns = [
             r'piped\S*',
@@ -153,8 +210,18 @@ class TweetReader:
                 # Remove the video-related text
                 text = re.sub(pattern, '', text, flags=re.IGNORECASE)
         
+        # Check if the tweet contains URLs
+        url_count = len(re.findall(r'https?://\S+', text))
+        
         # Replace URLs with "there is a link" instead of reading them out
-        text = re.sub(r'https?://\S+', ' there is a link ', text)
+        # First, remove all URLs
+        text = re.sub(r'https?://\S+', '', text)
+        
+        # Then add a single mention of links if any were found
+        if url_count == 1:
+            text += " There is a link in this tweet."
+        elif url_count > 1:
+            text += f" There are {url_count} links in this tweet."
         
         # Format hashtags for better reading
         text = text.replace('#', ' hashtag ')
@@ -175,6 +242,97 @@ class TweetReader:
         # Add information about video if present
         if has_video or has_video_text or has_media and "video" in text.lower():
             formatted_text += " There is a video in this tweet."
+        
+        # Add AI description of images if enabled and media links are available
+        if self.describe_images and self.image_describer and media_links:
+            # First, check for video previews
+            video_previews = []
+            regular_images = []
+            
+            # Properly categorize media links
+            for link in media_links:
+                if isinstance(link, str) and "video_preview:" in link:
+                    video_previews.append(link)
+                    logger.info(f"Found video preview link: {link}")
+                elif isinstance(link, str) and any(link.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif']):
+                    regular_images.append(link)
+                    logger.info(f"Found image link: {link}")
+                elif isinstance(link, dict) and link.get('type') == 'photo':
+                    # Handle dictionary format for media
+                    img_url = link.get('url', '')
+                    if img_url:
+                        regular_images.append(img_url)
+                        logger.info(f"Found image link from dict: {img_url}")
+            
+            # Process video previews
+            for i, preview_link in enumerate(video_previews):
+                # Extract the actual URL from the prefixed string
+                actual_url = preview_link.split("video_preview:", 1)[1]
+                try:
+                    logger.info(f"Describing video preview image: {actual_url}")
+                    description = self.image_describer.describe_image(
+                        actual_url, 
+                        prompt="This is a preview frame from a video in a tweet. Describe what you see in this frame and what the video might be about. Keep it brief but informative."
+                    )
+                    
+                    # Check if we got a valid description
+                    if description and not description.startswith(("Error", "Could not")):
+                        # Truncate very long descriptions
+                        if len(description) > 300:
+                            description = description[:297] + "..."
+                        
+                        # Add the video description to the formatted text
+                        if len(video_previews) > 1:
+                            formatted_text += f" Video {i+1}: {description}"
+                        else:
+                            formatted_text += f" {description}"
+                        logger.info(f"Added video description: {description[:100]}...")
+                    else:
+                        logger.warning(f"Failed to get valid description for video preview: {description[:100] if description else 'None'}")
+                        # Add a generic message instead
+                        formatted_text += " The tweet contains a video, but the preview image is unavailable."
+                except Exception as e:
+                    logger.error(f"Error describing video preview: {e}", exc_info=True)
+                    # Add a generic message instead
+                    formatted_text += " The tweet contains a video, but the preview image is unavailable."
+            
+            # Process regular images
+            image_count = 0
+            for i, media_link in enumerate(regular_images):
+                try:
+                    logger.info(f"Describing image: {media_link}")
+                    description = self.image_describer.describe_image(
+                        media_link,
+                        prompt="This is an image from a tweet. Describe what you see in this image concisely but with important details."
+                    )
+                    
+                    # Check if we got a valid description
+                    if description and not description.startswith(("Error", "Could not")):
+                        # Truncate very long descriptions
+                        if len(description) > 300:
+                            description = description[:297] + "..."
+                        
+                        # Add the image description to the formatted text
+                        image_count += 1
+                        if len(regular_images) > 1:
+                            formatted_text += f" Image {image_count}: {description}"
+                        else:
+                            formatted_text += f" The image shows: {description}"
+                        logger.info(f"Added image description: {description[:100]}...")
+                    else:
+                        logger.warning(f"Failed to get valid description for image: {description[:100] if description else 'None'}")
+                        # Add a message that the image is unavailable
+                        if len(regular_images) > 1:
+                            formatted_text += f" Image {i+1} is unavailable."
+                        else:
+                            formatted_text += " The tweet contains an image, but it is unavailable."
+                except Exception as e:
+                    logger.error(f"Error describing image: {e}", exc_info=True)
+                    # Add a message that the image is unavailable
+                    if len(regular_images) > 1:
+                        formatted_text += f" Image {i+1} is unavailable."
+                    else:
+                        formatted_text += " The tweet contains an image, but it is unavailable."
         
         return formatted_text
     
@@ -455,48 +613,47 @@ class TweetReader:
         logger.info(f"Finished reading {tweets_read} tweets")
         return tweets_read
 
-def main():
-    parser = argparse.ArgumentParser(description='Read tweets aloud using ElevenLabs voice synthesis')
-    parser.add_argument('json_file', help='Path to the JSON file containing tweets')
-    parser.add_argument('--api-key', help='ElevenLabs API key (overrides hardcoded key)')
-    parser.add_argument('--voice-id', default='21m00Tcm4TlvDq8ikWAM', help='ID of the voice to use (default is "Rachel")')
-    parser.add_argument('--save-audio', action='store_true', help='Save audio files')
-    parser.add_argument('--output-dir', help='Directory to save audio files')
-    parser.add_argument('--delay', type=int, default=2, help='Delay between tweets in seconds')
+def parse_args():
+    parser = argparse.ArgumentParser(description='Read tweets using ElevenLabs API')
+    parser.add_argument('json_file', help='JSON file containing tweets')
+    parser.add_argument('--api-key', help='ElevenLabs API key')
+    parser.add_argument('--voice-id', help='Voice ID to use')
     parser.add_argument('--list-voices', action='store_true', help='List available voices')
-    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument('--save-audio', action='store_true', help='Save audio files')
+    parser.add_argument('--output-dir', default='tweet_audio', help='Directory to save audio files')
     parser.add_argument('--max-tweets', type=int, help='Maximum number of tweets to read')
+    parser.add_argument('--delay', type=int, default=0, help='Delay between tweets in seconds')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument('--describe-images', action='store_true', help='Use AI to describe images in tweets')
+    return parser.parse_args()
+
+def main():
+    args = parse_args()
     
-    args = parser.parse_args()
+    # Set up logging
+    log_level = logging.DEBUG if args.debug else logging.INFO
+    logging.basicConfig(level=log_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
-    # Set debug level if requested
-    if args.debug:
-        logger.setLevel(logging.DEBUG)
-        logger.info("Debug logging enabled")
+    # Get API key
+    api_key = args.api_key or os.getenv('ELEVENLABS_API_KEY') or "YOUR_API_KEY_HERE"
     
-    # Get API key from arguments, environment, or use the hardcoded one
-    api_key = args.api_key or os.environ.get('ELEVENLABS_API_KEY') or ELEVENLABS_API_KEY
+    # Initialize tweet reader
+    reader = TweetReader(
+        json_file=args.json_file,
+        api_key=api_key,
+        voice_id=args.voice_id,
+        save_audio=args.save_audio,
+        output_dir=args.output_dir,
+        describe_images=args.describe_images
+    )
     
-    try:
-        reader = TweetReader(
-            args.json_file,
-            api_key=api_key,
-            voice_id=args.voice_id,
-            save_audio=args.save_audio,
-            output_dir=args.output_dir
-        )
-        
-        # List voices if requested
-        if args.list_voices:
-            reader.list_available_voices()
-            return
-        
-        # Read all tweets
-        reader.read_all_tweets(delay=args.delay, max_tweets=args.max_tweets)
-    except ValueError as e:
-        logger.error(str(e))
-    except Exception as e:
-        logger.error(f"An error occurred: {e}", exc_info=True)
+    # List voices if requested
+    if args.list_voices:
+        reader.list_available_voices()
+        return
+    
+    # Read all tweets
+    reader.read_all_tweets(delay=args.delay, max_tweets=args.max_tweets)
 
 if __name__ == "__main__":
     main() 
