@@ -29,7 +29,7 @@ load_dotenv()
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("tweet_reader.log"),
@@ -190,6 +190,9 @@ class TweetReader:
         if not media_links and 'media' in tweet:
             media_links = tweet.get('media', [])
         
+        # Debug log to see what media links we have
+        logger.debug(f"Media links: {media_links}")
+        
         # Check for video-related text patterns
         video_patterns = [
             r'piped\S*',
@@ -233,8 +236,16 @@ class TweetReader:
         # Add AI description of images if enabled and media links are available
         if self.describe_images and self.image_describer and media_links:
             # First, check for video previews
-            video_previews = [link for link in media_links if link.startswith("video_preview:")]
-            regular_images = [link for link in media_links if not link.startswith("video_preview:")]
+            video_previews = []
+            regular_images = []
+            
+            # Properly categorize media links
+            for link in media_links:
+                if isinstance(link, str) and "video_preview:" in link:
+                    video_previews.append(link)
+                    logger.info(f"Found video preview link: {link}")
+                else:
+                    regular_images.append(link)
             
             # Process video previews
             for i, preview_link in enumerate(video_previews):
@@ -252,8 +263,11 @@ class TweetReader:
                             formatted_text += f" Video {i+1} appears to show: {description}"
                         else:
                             formatted_text += f" The video appears to show: {description}"
+                        logger.info(f"Added video description: {description[:100]}...")
+                    else:
+                        logger.warning(f"Failed to get valid description for video preview: {description[:100] if description else 'None'}")
                 except Exception as e:
-                    logger.error(f"Error describing video preview: {e}")
+                    logger.error(f"Error describing video preview: {e}", exc_info=True)
             
             # Process regular images
             for i, media_link in enumerate(regular_images):
