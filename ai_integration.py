@@ -153,8 +153,33 @@ class AIImageDescriber:
             BytesIO: Image data
         """
         try:
-            response = requests.get(image_url, stream=True)
+            # Add user agent and headers to avoid being blocked
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://nitter.net/"
+            }
+            
+            # Handle URL encoding issues
+            if '%' in image_url:
+                # URL might be double-encoded
+                try:
+                    from urllib.parse import unquote
+                    decoded_url = unquote(image_url)
+                    logger.debug(f"Decoded URL: {decoded_url}")
+                    image_url = decoded_url
+                except Exception as e:
+                    logger.warning(f"Error decoding URL: {e}")
+            
+            logger.debug(f"Downloading image from: {image_url}")
+            response = requests.get(image_url, stream=True, headers=headers, timeout=10)
             response.raise_for_status()
+            
+            # Check content type
+            content_type = response.headers.get('Content-Type', '')
+            logger.debug(f"Image content type: {content_type}")
+            
             return BytesIO(response.content)
         except Exception as e:
             logger.error(f"Error downloading image from {image_url}: {e}")
@@ -211,6 +236,25 @@ class AIImageDescriber:
             return "Image file not found."
         
         try:
+            # Ensure the image is in a format that the AI can process
+            try:
+                # Open and convert the image to ensure it's in a valid format
+                with Image.open(image_path) as img:
+                    # Convert to RGB if it's not already
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Save to a temporary file with a controlled format
+                    temp_converted_path = f"{image_path}_converted.jpg"
+                    img.save(temp_converted_path, format="JPEG", quality=95)
+                    
+                    # Use the converted image
+                    image_path = temp_converted_path
+                    logger.debug(f"Converted image saved to {image_path}")
+            except Exception as e:
+                logger.warning(f"Error converting image: {e}")
+                # Continue with the original image if conversion fails
+            
             # Encode the image to base64
             base64_image = self._encode_image_to_base64(image_path)
             if not base64_image:
@@ -254,6 +298,13 @@ class AIImageDescriber:
             # Extract the description
             description = response.content
             logger.info("Received image description from AI")
+            
+            # Clean up temporary converted file if it exists
+            if 'temp_converted_path' in locals() and os.path.exists(temp_converted_path):
+                try:
+                    os.remove(temp_converted_path)
+                except Exception:
+                    pass
             
             return description
         
