@@ -1,0 +1,144 @@
+/* Custom styles for TweedHat web application */
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.footer {
+    margin-top: auto;
+}
+
+/* Card styles */
+.card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+/* Job status badges */
+.badge-pending {
+    background-color: #6c757d;
+}
+
+.badge-scraping {
+    background-color: #17a2b8;
+}
+
+.badge-scraped {
+    background-color: #007bff;
+}
+
+.badge-generating_audio {
+    background-color: #6610f2;
+}
+
+.badge-processing {
+    background-color: #fd7e14;
+}
+
+.badge-completed {
+    background-color: #28a745;
+}
+
+.badge-failed {
+    background-color: #dc3545;
+}
+
+/* Form styles */
+.form-control:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Button styles */
+.btn-primary {
+    background-color: #4e73df;
+    border-color: #4e73df;
+}
+
+.btn-primary:hover {
+    background-color: #2e59d9;
+    border-color: #2653d4;
+}
+
+/* Dashboard stats */
+.stat-card {
+    border-left: 4px solid;
+    border-radius: 4px;
+}
+
+.stat-card-primary {
+    border-left-color: #4e73df;
+}
+
+.stat-card-success {
+    border-left-color: #1cc88a;
+}
+
+.stat-card-info {
+    border-left-color: #36b9cc;
+}
+
+.stat-card-warning {
+    border-left-color: #f6c23e;
+}
+
+/* Loading spinner */
+.spinner-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.spinner-container {
+    background-color: white;
+    padding: 20px;
+    border-radius: 5px;
+    text-align: center;
+}
+
+/* Job details page */
+.job-details-header {
+    background-color: #f8f9fc;
+    padding: 20px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+.audio-file-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Settings page */
+.api-key-field {
+    font-family: monospace;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 1rem;
+    }
+    
+    h1 {
+        font-size: 1.8rem;
+    }
+    
+    h2 {
+        font-size: 1.5rem;
+    }
+} 
