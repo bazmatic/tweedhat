@@ -244,8 +244,15 @@ class TweetReader:
                 if isinstance(link, str) and "video_preview:" in link:
                     video_previews.append(link)
                     logger.info(f"Found video preview link: {link}")
-                else:
+                elif isinstance(link, str) and any(link.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif']):
                     regular_images.append(link)
+                    logger.info(f"Found image link: {link}")
+                elif isinstance(link, dict) and link.get('type') == 'photo':
+                    # Handle dictionary format for media
+                    img_url = link.get('url', '')
+                    if img_url:
+                        regular_images.append(img_url)
+                        logger.info(f"Found image link from dict: {img_url}")
             
             # Process video previews
             for i, preview_link in enumerate(video_previews):
@@ -255,9 +262,15 @@ class TweetReader:
                     logger.info(f"Describing video preview image: {actual_url}")
                     description = self.image_describer.describe_image(
                         actual_url, 
-                        prompt="This is a preview frame from a video in a tweet. Describe what you see in this frame and what the video might be about."
+                        prompt="This is a preview frame from a video in a tweet. Describe what you see in this frame and what the video might be about. Keep it brief but informative."
                     )
-                    if description and not description.startswith("Error"):
+                    
+                    # Check if we got a valid description
+                    if description and not description.startswith(("Error", "Could not")):
+                        # Truncate very long descriptions
+                        if len(description) > 300:
+                            description = description[:297] + "..."
+                        
                         # Add the video description to the formatted text
                         if len(video_previews) > 1:
                             formatted_text += f" Video {i+1} appears to show: {description}"
@@ -266,24 +279,40 @@ class TweetReader:
                         logger.info(f"Added video description: {description[:100]}...")
                     else:
                         logger.warning(f"Failed to get valid description for video preview: {description[:100] if description else 'None'}")
+                        # Add a generic message instead
+                        formatted_text += " The tweet contains a video."
                 except Exception as e:
                     logger.error(f"Error describing video preview: {e}", exc_info=True)
+                    # Add a generic message instead
+                    formatted_text += " The tweet contains a video."
             
             # Process regular images
+            image_count = 0
             for i, media_link in enumerate(regular_images):
-                # Check if it's an image (simple check based on extension)
-                if any(media_link.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif']):
-                    try:
-                        logger.info(f"Describing image: {media_link}")
-                        description = self.image_describer.describe_image(media_link)
-                        if description and not description.startswith("Error"):
-                            # Add the image description to the formatted text
-                            if len(regular_images) > 1:
-                                formatted_text += f" Image {i+1}: {description}"
-                            else:
-                                formatted_text += f" The image shows: {description}"
-                    except Exception as e:
-                        logger.error(f"Error describing image: {e}")
+                try:
+                    logger.info(f"Describing image: {media_link}")
+                    description = self.image_describer.describe_image(
+                        media_link,
+                        prompt="This is an image from a tweet. Describe what you see in this image concisely but with important details."
+                    )
+                    
+                    # Check if we got a valid description
+                    if description and not description.startswith(("Error", "Could not")):
+                        # Truncate very long descriptions
+                        if len(description) > 300:
+                            description = description[:297] + "..."
+                        
+                        # Add the image description to the formatted text
+                        image_count += 1
+                        if len(regular_images) > 1:
+                            formatted_text += f" Image {image_count}: {description}"
+                        else:
+                            formatted_text += f" The image shows: {description}"
+                        logger.info(f"Added image description: {description[:100]}...")
+                    else:
+                        logger.warning(f"Failed to get valid description for image: {description[:100] if description else 'None'}")
+                except Exception as e:
+                    logger.error(f"Error describing image: {e}", exc_info=True)
         
         return formatted_text
     

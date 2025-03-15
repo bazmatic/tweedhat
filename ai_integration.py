@@ -172,6 +172,44 @@ class AIImageDescriber:
                 except Exception as e:
                     logger.warning(f"Error decoding URL: {e}")
             
+            # Special handling for Nitter URLs
+            if 'nitter.net' in image_url:
+                # Try different Nitter URL formats
+                original_url = image_url
+                
+                # For video previews, try alternative formats
+                if 'card_img' in image_url:
+                    # Extract the tweet ID and image ID from the URL
+                    import re
+                    tweet_id_match = re.search(r'/(\d+)/', image_url)
+                    image_id_match = re.search(r'/([A-Za-z0-9_-]+)\?', image_url)
+                    
+                    if tweet_id_match and image_id_match:
+                        tweet_id = tweet_id_match.group(1)
+                        image_id = image_id_match.group(1)
+                        
+                        # Try alternative URL formats
+                        alternative_urls = [
+                            f"https://nitter.net/pic/media%2F{image_id}%3Fformat%3Djpg%26name%3Dsmall",
+                            f"https://nitter.net/pic/media%2F{image_id}.jpg",
+                            f"https://nitter.net/pic/orig/media%2F{image_id}.jpg",
+                            f"https://nitter.net/pic/{tweet_id}/media%2F{image_id}.jpg"
+                        ]
+                        
+                        for alt_url in alternative_urls:
+                            logger.debug(f"Trying alternative Nitter URL: {alt_url}")
+                            try:
+                                response = requests.get(alt_url, stream=True, headers=headers, timeout=10)
+                                if response.status_code == 200 and response.headers.get('Content-Type', '').startswith('image/'):
+                                    logger.info(f"Successfully downloaded image from alternative URL: {alt_url}")
+                                    return BytesIO(response.content)
+                            except Exception as e:
+                                logger.debug(f"Failed to download from alternative URL {alt_url}: {e}")
+                                continue
+                
+                # If we couldn't find an alternative URL, try the original
+                image_url = original_url
+            
             logger.debug(f"Downloading image from: {image_url}")
             response = requests.get(image_url, stream=True, headers=headers, timeout=10)
             response.raise_for_status()
@@ -179,6 +217,14 @@ class AIImageDescriber:
             # Check content type
             content_type = response.headers.get('Content-Type', '')
             logger.debug(f"Image content type: {content_type}")
+            
+            # Verify that we actually got an image
+            if not content_type.startswith('image/'):
+                logger.warning(f"Downloaded content is not an image: {content_type}")
+                # If it's HTML, it might be an error page
+                if content_type.startswith('text/html'):
+                    logger.debug("Received HTML instead of an image, likely an error page")
+                    raise ValueError(f"Received HTML instead of an image from {image_url}")
             
             return BytesIO(response.content)
         except Exception as e:
@@ -213,11 +259,28 @@ class AIImageDescriber:
             temp_path = os.path.join(self.images_folder, filename)
             
             # Save to the images folder
-            with open(temp_path, "wb") as f:
-                f.write(image_data.getvalue())
+            try:
+                # Try to open and validate the image data before saving
+                try:
+                    img = Image.open(image_data)
+                    # Convert to RGB if needed
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    # Save as JPEG
+                    img.save(temp_path, format="JPEG", quality=95)
+                    logger.info(f"Saved and converted image to {temp_path}")
+                except Exception as e:
+                    logger.error(f"Error processing downloaded image: {e}")
+                    # Try direct save as fallback
+                    image_data.seek(0)
+                    with open(temp_path, "wb") as f:
+                        f.write(image_data.getvalue())
+                    logger.info(f"Saved raw image data to {temp_path}")
+            except Exception as e:
+                logger.error(f"Failed to save image: {e}")
+                return "Could not process the downloaded image."
             
             image_path = temp_path
-            logger.info(f"Saved image to {image_path}")
         else:
             # If it's a relative path and not in the current directory, check if it's in the images folder
             if not os.path.isabs(image_path_or_url) and not os.path.exists(image_path_or_url):
@@ -237,8 +300,15 @@ class AIImageDescriber:
         
         try:
             # Ensure the image is in a format that the AI can process
+            temp_converted_path = None
             try:
                 # Open and convert the image to ensure it's in a valid format
+                with Image.open(image_path) as img:
+                    # Check if the image is valid
+                    img.verify()
+                    logger.debug(f"Image verified: {image_path}")
+                
+                # Reopen the image after verification
                 with Image.open(image_path) as img:
                     # Convert to RGB if it's not already
                     if img.mode != 'RGB':
@@ -300,7 +370,7 @@ class AIImageDescriber:
             logger.info("Received image description from AI")
             
             # Clean up temporary converted file if it exists
-            if 'temp_converted_path' in locals() and os.path.exists(temp_converted_path):
+            if temp_converted_path and os.path.exists(temp_converted_path):
                 try:
                     os.remove(temp_converted_path)
                 except Exception:
