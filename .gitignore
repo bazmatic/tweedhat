@@ -39,7 +39,8 @@ logs/
 *.mp3
 *.mp4
 *.wav
-tweet_audio/
+tweet_audio/*
+!tweet_audio/.gitkeep
 
 # Chrome profiles
 .chrome_profiles/
@@ -57,4 +58,15 @@ credentials.json
 .DS_Store
 
 # Exceptions - keep example files
-!example_tweet.json 
+!example_tweet.json
+
+# Environment variables
+.env
+
+# Folder contents but keep the folders
+tweets/*
+!tweets/.gitkeep
+images/*
+!images/.gitkeep
+
+# ... existing code ... 
