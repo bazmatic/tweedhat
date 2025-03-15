@@ -10,6 +10,7 @@ A tool for scraping tweets from X.com (formerly Twitter) and reading them aloud 
 - Format tweets for better listening experience
 - Handle URLs, hashtags, and mentions appropriately
 - Detect and announce videos in tweets
+- AI-powered image description for tweets containing images (using Anthropic or OpenAI)
 
 ## Components
 
@@ -84,40 +85,59 @@ Options:
    ```bash
    pip install -r requirements.txt
    ```
-3. Get an ElevenLabs API key from [ElevenLabs](https://elevenlabs.io/)
-4. Create a `.env` file in the project root with your API key:
+3. Create a `.env` file based on the `.env.example` template:
    ```
-   ELEVENLABS_API_KEY="your_api_key_here"
+   cp .env.example .env
    ```
-5. Run the scraper to collect tweets
-6. Run the reader to listen to the tweets
+4. Add your API keys to the `.env` file:
+   - Get an ElevenLabs API key from [ElevenLabs](https://elevenlabs.io/)
+   - For image description, add either:
+     - Anthropic API key from [Anthropic](https://www.anthropic.com/)
+     - OpenAI API key from [OpenAI](https://openai.com/)
 
-## Example Usage
+## Usage
 
-1. Scrape and read tweets in one command:
-   ```bash
-   python tweedhat.py elonmusk --visible --max-tweets 10 --voice-id "EXAVITQu4vr4xnSDxMaL" --read-max 5
-   ```
+The main script `tweedhat.py` provides a command-line interface for scraping tweets and reading them aloud:
 
-2. List available voices:
-   ```bash
-   python tweedhat.py elonmusk --list-voices
-   ```
+```
+python tweedhat.py <username> [options]
+```
 
-3. Scrape tweets from a user:
-   ```bash
-   python scrape.py elonmusk --visible --max 20
-   ```
+### Options
 
-4. Read tweets with a specific voice:
-   ```bash
-   python read_tweets.py elonmusk_tweets_20250315_192935.json --voice-id "EXAVITQu4vr4xnSDxMaL" --max-tweets 5
-   ```
+#### Scraper options:
+- `--max-tweets <number>`: Maximum number of tweets to scrape (default: 20)
+- `--headless`: Run browser in headless mode
+- `--no-read`: Only scrape tweets, don't read them aloud
 
-5. Save audio files of tweets:
-   ```bash
-   python read_tweets.py elonmusk_tweets_20250315_192935.json --voice-id "EXAVITQu4vr4xnSDxMaL" --save-audio
-   ```
+#### Reader options:
+- `--voice-id <id>`: ID of the voice to use
+- `--save-audio`: Save audio files
+- `--output-dir <directory>`: Directory to save audio files
+- `--delay <seconds>`: Delay between tweets in seconds (default: 2)
+- `--read-max <number>`: Maximum number of tweets to read
+- `--describe-images`: Use AI to describe images in tweets
+
+#### General options:
+- `--list-voices`: List available voices
+- `--debug`: Enable debug logging
+
+### Examples
+
+Scrape tweets from Elon Musk and read them aloud:
+```
+python tweedhat.py elonmusk
+```
+
+Scrape tweets, save audio files, and use AI to describe images:
+```
+python tweedhat.py elonmusk --save-audio --describe-images
+```
+
+List available voices:
+```
+python tweedhat.py --list-voices
+```
 
 ## Notes
 

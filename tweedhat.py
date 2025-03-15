@@ -76,7 +76,7 @@ def run_scraper(username, max_tweets=None, visible=False, debug=False, email=Non
         logger.error(f"Scraper stderr: {e.stderr}")
         return None
 
-def run_reader(json_file, voice_id=None, save_audio=False, output_dir=None, delay=2, max_tweets=None, debug=False):
+def run_reader(json_file, voice_id=None, save_audio=False, output_dir=None, delay=2, max_tweets=None, debug=False, describe_images=False):
     """
     Run the tweet reader to read tweets aloud.
     
@@ -88,6 +88,7 @@ def run_reader(json_file, voice_id=None, save_audio=False, output_dir=None, dela
         delay (int): Delay between tweets in seconds
         max_tweets (int): Maximum number of tweets to read
         debug (bool): Enable debug logging
+        describe_images (bool): Use AI to describe images in tweets
         
     Returns:
         bool: True if successful, False otherwise
@@ -114,6 +115,9 @@ def run_reader(json_file, voice_id=None, save_audio=False, output_dir=None, dela
     
     if debug:
         cmd.append("--debug")
+    
+    if describe_images:
+        cmd.append("--describe-images")
     
     # Run the reader
     try:
@@ -162,6 +166,7 @@ def main():
     reader_group.add_argument('--output-dir', help='Directory to save audio files')
     reader_group.add_argument('--delay', type=int, default=2, help='Delay between tweets in seconds')
     reader_group.add_argument('--read-max', type=int, help='Maximum number of tweets to read')
+    reader_group.add_argument('--describe-images', action='store_true', help='Use AI to describe images in tweets')
     
     # General options
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
@@ -208,7 +213,8 @@ def main():
         output_dir=args.output_dir,
         delay=args.delay,
         max_tweets=args.read_max,
-        debug=args.debug
+        debug=args.debug,
+        describe_images=args.describe_images
     )
 
 if __name__ == "__main__":

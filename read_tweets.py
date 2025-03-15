@@ -15,6 +15,15 @@ from mutagen.mp3 import MP3
 import re
 from dotenv import load_dotenv
 
+# Import AI image describer
+try:
+    from ai_integration import AIImageDescriber
+    AI_INTEGRATION_AVAILABLE = True
+except ImportError:
+    AI_INTEGRATION_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("AI integration module not available. Image description will be disabled.")
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -33,7 +42,7 @@ logger = logging.getLogger(__name__)
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 
 class TweetReader:
-    def __init__(self, json_file, api_key=None, voice_id="21m00Tcm4TlvDq8ikWAM", save_audio=False, output_dir=None):
+    def __init__(self, json_file, api_key=None, voice_id="21m00Tcm4TlvDq8ikWAM", save_audio=False, output_dir=None, describe_images=False):
         """
         Initialize the TweetReader.
         
@@ -43,12 +52,31 @@ class TweetReader:
             voice_id (str): ID of the voice to use (default is "Rachel")
             save_audio (bool): Whether to save audio files
             output_dir (str): Directory to save audio files
+            describe_images (bool): Whether to use AI to describe images in tweets
         """
         self.json_file = json_file
         self.api_key = api_key or ELEVENLABS_API_KEY  # Use environment variable if none provided
         self.voice_id = voice_id
         self.save_audio = save_audio
         self.api_url = "https://api.elevenlabs.io/v1"
+        self.describe_images = describe_images
+        
+        # Initialize AI image describer if enabled
+        if self.describe_images:
+            if AI_INTEGRATION_AVAILABLE:
+                try:
+                    self.image_describer = AIImageDescriber()
+                    logger.info("AI image description enabled")
+                except Exception as e:
+                    logger.error(f"Error initializing AI image describer: {e}")
+                    self.describe_images = False
+                    self.image_describer = None
+            else:
+                logger.warning("AI integration not available. Image description disabled.")
+                self.describe_images = False
+                self.image_describer = None
+        else:
+            self.image_describer = None
         
         # Set up output directory
         if save_audio:
@@ -135,6 +163,7 @@ class TweetReader:
         timestamp = tweet.get('timestamp', '')
         has_video = tweet.get('has_video', False)
         has_media = tweet.get('has_media', False)
+        media_links = tweet.get('media_links', [])
         
         # Check for video-related text patterns
         video_patterns = [
@@ -175,6 +204,23 @@ class TweetReader:
         # Add information about video if present
         if has_video or has_video_text or has_media and "video" in text.lower():
             formatted_text += " There is a video in this tweet."
+        
+        # Add AI description of images if enabled and media links are available
+        if self.describe_images and self.image_describer and media_links:
+            for i, media_link in enumerate(media_links):
+                # Check if it's an image (simple check based on extension)
+                if any(media_link.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif']) or not has_video:
+                    try:
+                        logger.info(f"Describing image: {media_link}")
+                        description = self.image_describer.describe_image(media_link)
+                        if description and not description.startswith("Error"):
+                            # Add the image description to the formatted text
+                            if len(media_links) > 1:
+                                formatted_text += f" Image {i+1}: {description}"
+                            else:
+                                formatted_text += f" The image shows: {description}"
+                    except Exception as e:
+                        logger.error(f"Error describing image: {e}")
         
         return formatted_text
     
@@ -455,48 +501,47 @@ class TweetReader:
         logger.info(f"Finished reading {tweets_read} tweets")
         return tweets_read
 
-def main():
-    parser = argparse.ArgumentParser(description='Read tweets aloud using ElevenLabs voice synthesis')
-    parser.add_argument('json_file', help='Path to the JSON file containing tweets')
-    parser.add_argument('--api-key', help='ElevenLabs API key (overrides hardcoded key)')
-    parser.add_argument('--voice-id', default='21m00Tcm4TlvDq8ikWAM', help='ID of the voice to use (default is "Rachel")')
-    parser.add_argument('--save-audio', action='store_true', help='Save audio files')
-    parser.add_argument('--output-dir', help='Directory to save audio files')
-    parser.add_argument('--delay', type=int, default=2, help='Delay between tweets in seconds')
+def parse_args():
+    parser = argparse.ArgumentParser(description='Read tweets using ElevenLabs API')
+    parser.add_argument('json_file', help='JSON file containing tweets')
+    parser.add_argument('--api-key', help='ElevenLabs API key')
+    parser.add_argument('--voice-id', help='Voice ID to use')
     parser.add_argument('--list-voices', action='store_true', help='List available voices')
-    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument('--save-audio', action='store_true', help='Save audio files')
+    parser.add_argument('--output-dir', default='tweet_audio', help='Directory to save audio files')
     parser.add_argument('--max-tweets', type=int, help='Maximum number of tweets to read')
+    parser.add_argument('--delay', type=int, default=0, help='Delay between tweets in seconds')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument('--describe-images', action='store_true', help='Use AI to describe images in tweets')
+    return parser.parse_args()
+
+def main():
+    args = parse_args()
     
-    args = parser.parse_args()
+    # Set up logging
+    log_level = logging.DEBUG if args.debug else logging.INFO
+    logging.basicConfig(level=log_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
-    # Set debug level if requested
-    if args.debug:
-        logger.setLevel(logging.DEBUG)
-        logger.info("Debug logging enabled")
+    # Get API key
+    api_key = args.api_key or os.getenv('ELEVENLABS_API_KEY') or "YOUR_API_KEY_HERE"
     
-    # Get API key from arguments, environment, or use the hardcoded one
-    api_key = args.api_key or os.environ.get('ELEVENLABS_API_KEY') or ELEVENLABS_API_KEY
+    # Initialize tweet reader
+    reader = TweetReader(
+        json_file=args.json_file,
+        api_key=api_key,
+        voice_id=args.voice_id,
+        save_audio=args.save_audio,
+        output_dir=args.output_dir,
+        describe_images=args.describe_images
+    )
     
-    try:
-        reader = TweetReader(
-            args.json_file,
-            api_key=api_key,
-            voice_id=args.voice_id,
-            save_audio=args.save_audio,
-            output_dir=args.output_dir
-        )
-        
-        # List voices if requested
-        if args.list_voices:
-            reader.list_available_voices()
-            return
-        
-        # Read all tweets
-        reader.read_all_tweets(delay=args.delay, max_tweets=args.max_tweets)
-    except ValueError as e:
-        logger.error(str(e))
-    except Exception as e:
-        logger.error(f"An error occurred: {e}", exc_info=True)
+    # List voices if requested
+    if args.list_voices:
+        reader.list_available_voices()
+        return
+    
+    # Read all tweets
+    reader.read_all_tweets(delay=args.delay, max_tweets=args.max_tweets)
 
 if __name__ == "__main__":
     main() 
