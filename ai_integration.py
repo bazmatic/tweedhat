@@ -67,10 +67,68 @@ class AIImageDescriber:
             str: Base64-encoded image
         """
         try:
+            # Check file size
+            file_size = os.path.getsize(image_path)
+            if file_size > 5 * 1024 * 1024:  # 5MB
+                logger.info(f"Image is too large ({file_size / (1024 * 1024):.2f} MB), resizing")
+                return self._resize_and_encode_image(image_path)
+            
             with open(image_path, "rb") as image_file:
                 return base64.b64encode(image_file.read()).decode('utf-8')
         except Exception as e:
             logger.error(f"Error encoding image to base64: {e}")
+            return None
+    
+    def _resize_and_encode_image(self, image_path):
+        """
+        Resize an image to reduce its file size and encode it to base64.
+        
+        Args:
+            image_path (str): Path to the image file
+            
+        Returns:
+            str: Base64-encoded resized image
+        """
+        try:
+            # Open the image
+            with Image.open(image_path) as img:
+                # Calculate new dimensions while maintaining aspect ratio
+                width, height = img.size
+                max_dimension = 1500  # Max dimension for either width or height
+                
+                if width > height and width > max_dimension:
+                    new_width = max_dimension
+                    new_height = int(height * (max_dimension / width))
+                elif height > max_dimension:
+                    new_height = max_dimension
+                    new_width = int(width * (max_dimension / height))
+                else:
+                    # If the image is already small enough, just reduce quality
+                    new_width, new_height = width, height
+                
+                # Resize the image
+                resized_img = img.resize((new_width, new_height), Image.LANCZOS)
+                
+                # Save to a BytesIO object with reduced quality
+                buffer = BytesIO()
+                if resized_img.mode == 'RGBA':
+                    resized_img = resized_img.convert('RGB')
+                resized_img.save(buffer, format="JPEG", quality=85)
+                buffer.seek(0)
+                
+                # Check if the resized image is still too large
+                if buffer.getbuffer().nbytes > 5 * 1024 * 1024:
+                    # Try again with even lower quality
+                    buffer = BytesIO()
+                    resized_img.save(buffer, format="JPEG", quality=65)
+                    buffer.seek(0)
+                
+                # Encode to base64
+                encoded = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                logger.info(f"Image resized from {width}x{height} to {new_width}x{new_height}")
+                return encoded
+        except Exception as e:
+            logger.error(f"Error resizing image: {e}")
             return None
     
     def _download_image(self, image_url):
