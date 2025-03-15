@@ -254,6 +254,63 @@ def download_audio(job_id, filename):
     return send_file(file_path, as_attachment=True)
 
 
+@jobs_bp.route('/<job_id>/stream/<filename>')
+@login_required
+def stream_audio(job_id, filename):
+    """Stream an audio file."""
+    job = Job.get_by_id(job_id)
+    
+    if not job or job.user_id != current_user.id:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    # Find the full path of the audio file in the job's audio_files list
+    file_path = None
+    for audio_file in job.audio_files:
+        if os.path.basename(audio_file) == filename:
+            file_path = audio_file
+            break
+    
+    if not file_path or not os.path.exists(file_path):
+        return jsonify({'error': 'File not found'}), 404
+    
+    return send_file(file_path, as_attachment=False)
+
+
+@jobs_bp.route('/<job_id>/audio_files')
+@login_required
+def get_audio_files(job_id):
+    """Get all audio files for a job in the correct order."""
+    job = Job.get_by_id(job_id)
+    
+    if not job or job.user_id != current_user.id:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    # Extract filenames and sort them by tweet index
+    audio_files = []
+    for audio_file in job.audio_files:
+        filename = os.path.basename(audio_file)
+        # Extract the index from the filename (format: tweet_INDEX_ID.mp3)
+        try:
+            index = int(filename.split('_')[1])
+            audio_files.append({
+                'index': index,
+                'filename': filename,
+                'url': url_for('jobs.stream_audio', job_id=job.id, filename=filename)
+            })
+        except (IndexError, ValueError):
+            # If we can't extract the index, just add it to the end
+            audio_files.append({
+                'index': 999,
+                'filename': filename,
+                'url': url_for('jobs.stream_audio', job_id=job.id, filename=filename)
+            })
+    
+    # Sort by index
+    audio_files.sort(key=lambda x: x['index'])
+    
+    return jsonify({'audio_files': audio_files})
+
+
 @jobs_bp.route('/<job_id>/delete', methods=['POST'])
 @login_required
 def delete_job(job_id):
