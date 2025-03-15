@@ -251,7 +251,7 @@ class AIImageDescriber:
             logger.info(f"Downloading image from URL: {image_path_or_url}")
             image_data = self._download_image(image_path_or_url)
             if not image_data:
-                return "Could not download the image."
+                return "Error: Image unavailable."
             
             # Generate a filename based on the URL
             url_hash = hashlib.md5(image_path_or_url.encode()).hexdigest()
@@ -278,7 +278,7 @@ class AIImageDescriber:
                     logger.info(f"Saved raw image data to {temp_path}")
             except Exception as e:
                 logger.error(f"Failed to save image: {e}")
-                return "Could not process the downloaded image."
+                return "Error: Image unavailable."
             
             image_path = temp_path
         else:
@@ -296,7 +296,7 @@ class AIImageDescriber:
         # Check if the file exists
         if not os.path.exists(image_path):
             logger.error(f"Image file not found: {image_path}")
-            return "Image file not found."
+            return "Error: Image unavailable."
         
         try:
             # Ensure the image is in a format that the AI can process
@@ -380,7 +380,7 @@ class AIImageDescriber:
         
         except Exception as e:
             logger.error(f"Error describing image: {e}", exc_info=True)
-            return f"Error describing image: {str(e)}"
+            return "Error: Image unavailable."
 
 # Example usage
 if __name__ == "__main__":

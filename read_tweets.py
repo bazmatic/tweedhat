@@ -210,8 +210,18 @@ class TweetReader:
                 # Remove the video-related text
                 text = re.sub(pattern, '', text, flags=re.IGNORECASE)
         
+        # Check if the tweet contains URLs
+        url_count = len(re.findall(r'https?://\S+', text))
+        
         # Replace URLs with "there is a link" instead of reading them out
-        text = re.sub(r'https?://\S+', ' there is a link ', text)
+        # First, remove all URLs
+        text = re.sub(r'https?://\S+', '', text)
+        
+        # Then add a single mention of links if any were found
+        if url_count == 1:
+            text += " There is a link in this tweet."
+        elif url_count > 1:
+            text += f" There are {url_count} links in this tweet."
         
         # Format hashtags for better reading
         text = text.replace('#', ' hashtag ')
@@ -280,11 +290,11 @@ class TweetReader:
                     else:
                         logger.warning(f"Failed to get valid description for video preview: {description[:100] if description else 'None'}")
                         # Add a generic message instead
-                        formatted_text += " The tweet contains a video."
+                        formatted_text += " The tweet contains a video, but the preview image is unavailable."
                 except Exception as e:
                     logger.error(f"Error describing video preview: {e}", exc_info=True)
                     # Add a generic message instead
-                    formatted_text += " The tweet contains a video."
+                    formatted_text += " The tweet contains a video, but the preview image is unavailable."
             
             # Process regular images
             image_count = 0
@@ -311,8 +321,18 @@ class TweetReader:
                         logger.info(f"Added image description: {description[:100]}...")
                     else:
                         logger.warning(f"Failed to get valid description for image: {description[:100] if description else 'None'}")
+                        # Add a message that the image is unavailable
+                        if len(regular_images) > 1:
+                            formatted_text += f" Image {i+1} is unavailable."
+                        else:
+                            formatted_text += " The tweet contains an image, but it is unavailable."
                 except Exception as e:
                     logger.error(f"Error describing image: {e}", exc_info=True)
+                    # Add a message that the image is unavailable
+                    if len(regular_images) > 1:
+                        formatted_text += f" Image {i+1} is unavailable."
+                    else:
+                        formatted_text += " The tweet contains an image, but it is unavailable."
         
         return formatted_text
     

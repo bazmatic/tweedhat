@@ -45,10 +45,10 @@ def main():
         # Get the image description
         if args.image_url:
             logger.info(f"Describing image from URL: {args.image_url}")
-            description = describer.describe_image_from_url(args.image_url)
+            description = describer.describe_image(args.image_url)
         else:
             logger.info(f"Describing image from file: {args.image_path}")
-            description = describer.describe_image_from_file(args.image_path)
+            description = describer.describe_image(args.image_path)
         
         # Print the description
         print("\n--- Image Description ---")
