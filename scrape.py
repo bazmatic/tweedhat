@@ -923,6 +923,7 @@ class TweetScraper:
             # Get media links (images, videos)
             media_links = []
             has_video = False
+            video_preview_url = None
             try:
                 # Check for images
                 media_elements = tweet_element.find_elements(By.CSS_SELECTOR, "img[src*='media']")
@@ -935,6 +936,18 @@ class TweetScraper:
                 video_elements = tweet_element.find_elements(By.CSS_SELECTOR, "div[data-testid='videoPlayer']")
                 if video_elements:
                     has_video = True
+                    # Try to find video preview image
+                    try:
+                        # Look for the video thumbnail/preview image
+                        video_preview = video_elements[0].find_element(By.CSS_SELECTOR, "img")
+                        if video_preview:
+                            video_preview_url = video_preview.get_attribute("src")
+                            if video_preview_url and video_preview_url not in media_links:
+                                # Add the video preview to media links with a special prefix
+                                media_links.append(f"video_preview:{video_preview_url}")
+                                logger.debug(f"Found video preview image: {video_preview_url}")
+                    except NoSuchElementException:
+                        logger.debug("Could not find video preview image")
                     
                 logger.debug(f"Extracted {len(media_links)} media links")
             except Exception as e:
@@ -949,6 +962,7 @@ class TweetScraper:
                 "media": media_links,
                 "has_video": has_video,
                 "has_media": len(media_links) > 0 or has_video,
+                "video_preview_url": video_preview_url,
                 "source": "x.com"
             }
         except Exception as e:
@@ -1018,6 +1032,7 @@ class TweetScraper:
             
             # Get media links
             media_links = []
+            video_preview_url = None
             try:
                 # Try multiple selectors to find images
                 # First try the original selector
@@ -1048,6 +1063,37 @@ class TweetScraper:
                 if video_elements:
                     # Mark that this tweet has a video
                     has_video = True
+                    
+                    # Try to find video preview image
+                    try:
+                        # Look for the video thumbnail/preview image
+                        video_preview = video_elements[0].find_element(By.CSS_SELECTOR, "img")
+                        if video_preview:
+                            video_preview_url = video_preview.get_attribute("src")
+                            if video_preview_url and video_preview_url not in media_links:
+                                # Convert relative URLs to absolute URLs if needed
+                                if video_preview_url.startswith('/'):
+                                    base_url = self.driver.current_url.split('/status')[0]
+                                    video_preview_url = f"{base_url}{video_preview_url}"
+                                # Add the video preview to media links with a special prefix
+                                media_links.append(f"video_preview:{video_preview_url}")
+                                logger.debug(f"Found video preview image: {video_preview_url}")
+                    except NoSuchElementException:
+                        # Try alternative selectors for video thumbnails
+                        try:
+                            video_preview = video_elements[0].find_element(By.CSS_SELECTOR, ".poster")
+                            if video_preview:
+                                video_preview_url = video_preview.get_attribute("src")
+                                if video_preview_url and video_preview_url not in media_links:
+                                    # Convert relative URLs to absolute URLs if needed
+                                    if video_preview_url.startswith('/'):
+                                        base_url = self.driver.current_url.split('/status')[0]
+                                        video_preview_url = f"{base_url}{video_preview_url}"
+                                    # Add the video preview to media links with a special prefix
+                                    media_links.append(f"video_preview:{video_preview_url}")
+                                    logger.debug(f"Found video preview image: {video_preview_url}")
+                        except NoSuchElementException:
+                            logger.debug("Could not find video preview image")
                 else:
                     has_video = False
                 
@@ -1065,6 +1111,7 @@ class TweetScraper:
                 "media": media_links,
                 "has_video": has_video,
                 "has_media": len(media_links) > 0 or has_video,
+                "video_preview_url": video_preview_url,
                 "source": "nitter"
             }
         except Exception as e:

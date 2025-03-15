@@ -232,15 +232,39 @@ class TweetReader:
         
         # Add AI description of images if enabled and media links are available
         if self.describe_images and self.image_describer and media_links:
-            for i, media_link in enumerate(media_links):
+            # First, check for video previews
+            video_previews = [link for link in media_links if link.startswith("video_preview:")]
+            regular_images = [link for link in media_links if not link.startswith("video_preview:")]
+            
+            # Process video previews
+            for i, preview_link in enumerate(video_previews):
+                # Extract the actual URL from the prefixed string
+                actual_url = preview_link.split("video_preview:", 1)[1]
+                try:
+                    logger.info(f"Describing video preview image: {actual_url}")
+                    description = self.image_describer.describe_image(
+                        actual_url, 
+                        prompt="This is a preview frame from a video in a tweet. Describe what you see in this frame and what the video might be about."
+                    )
+                    if description and not description.startswith("Error"):
+                        # Add the video description to the formatted text
+                        if len(video_previews) > 1:
+                            formatted_text += f" Video {i+1} appears to show: {description}"
+                        else:
+                            formatted_text += f" The video appears to show: {description}"
+                except Exception as e:
+                    logger.error(f"Error describing video preview: {e}")
+            
+            # Process regular images
+            for i, media_link in enumerate(regular_images):
                 # Check if it's an image (simple check based on extension)
-                if any(media_link.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif']) or not has_video:
+                if any(media_link.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif']):
                     try:
                         logger.info(f"Describing image: {media_link}")
                         description = self.image_describer.describe_image(media_link)
                         if description and not description.startswith("Error"):
                             # Add the image description to the formatted text
-                            if len(media_links) > 1:
+                            if len(regular_images) > 1:
                                 formatted_text += f" Image {i+1}: {description}"
                             else:
                                 formatted_text += f" The image shows: {description}"
