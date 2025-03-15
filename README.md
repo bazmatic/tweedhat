@@ -13,6 +13,35 @@ A tool for scraping tweets from X.com (formerly Twitter) and reading them aloud 
 
 ## Components
 
+### All-in-One Script (`tweedhat.py`)
+
+Combines tweet scraping and reading in a single command.
+
+```bash
+python tweedhat.py USERNAME [options]
+```
+
+Options are grouped into scraper options and reader options:
+
+Scraper options:
+- `--max-tweets NUMBER`: Maximum number of tweets to scrape
+- `--visible`: Run scraper in visible mode (not headless)
+- `--email EMAIL`: X.com login email
+- `--password PASSWORD`: X.com login password
+- `--no-profile`: Do not use a persistent Chrome profile
+
+Reader options:
+- `--voice-id ID`: ID of the voice to use
+- `--save-audio`: Save audio files
+- `--output-dir DIR`: Directory to save audio files
+- `--delay SECONDS`: Delay between tweets in seconds
+- `--read-max NUMBER`: Maximum number of tweets to read
+
+General options:
+- `--debug`: Enable debug logging
+- `--list-voices`: List available voices and exit
+- `--json-file FILE`: Use existing JSON file instead of scraping
+
 ### Tweet Scraper (`scrape.py`)
 
 Scrapes tweets from X.com profiles using Selenium WebDriver.
@@ -65,22 +94,27 @@ Options:
 
 ## Example Usage
 
-1. Scrape tweets from a user:
+1. Scrape and read tweets in one command:
    ```bash
-   python scrape.py elonmusk --visible --max 20
+   python tweedhat.py elonmusk --visible --max-tweets 10 --voice-id "EXAVITQu4vr4xnSDxMaL" --read-max 5
    ```
 
 2. List available voices:
    ```bash
-   python read_tweets.py example_tweet.json --list-voices
+   python tweedhat.py elonmusk --list-voices
    ```
 
-3. Read tweets with a specific voice:
+3. Scrape tweets from a user:
+   ```bash
+   python scrape.py elonmusk --visible --max 20
+   ```
+
+4. Read tweets with a specific voice:
    ```bash
    python read_tweets.py elonmusk_tweets_20250315_192935.json --voice-id "EXAVITQu4vr4xnSDxMaL" --max-tweets 5
    ```
 
-4. Save audio files of tweets:
+5. Save audio files of tweets:
    ```bash
    python read_tweets.py elonmusk_tweets_20250315_192935.json --voice-id "EXAVITQu4vr4xnSDxMaL" --save-audio
    ```
