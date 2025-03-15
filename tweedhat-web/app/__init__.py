@@ -4,6 +4,7 @@ from flask_login import LoginManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from celery import Celery
+from datetime import datetime
 
 from config import config
 
@@ -40,6 +41,11 @@ def create_app(config_name=None):
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(jobs_bp, url_prefix='/jobs')
+    
+    # Add context processor for templates
+    @app.context_processor
+    def inject_now():
+        return {'now': datetime.utcnow()}
     
     return app
 

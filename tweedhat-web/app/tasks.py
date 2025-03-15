@@ -26,7 +26,7 @@ sys.path.append(os.path.dirname(Config.BASE_DIR))
 
 # Import the original modules
 try:
-    from scrape import TwitterScraper
+    from scrape import TweetScraper as TwitterScraper
     from read_tweets import TweetReader
     from ai_integration import AIImageDescriber
 except ImportError as e:

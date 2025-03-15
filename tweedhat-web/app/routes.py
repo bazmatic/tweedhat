@@ -194,8 +194,12 @@ def new_job():
         job.save()
         
         # Start the job
-        scrape_tweets_task.delay(job.id)
-        
+        try:
+            scrape_tweets_task.delay(job.id)
+        except Exception as e:
+            flash(f'Warning: Could not start background task. Celery worker may not be running. Error: {str(e)}', 'warning')
+            job.update_status('pending', 'Job created but not started. Celery worker may not be running.')
+            
         flash('Job created successfully!', 'success')
         return redirect(url_for('jobs.view', job_id=job.id))
     
@@ -212,7 +216,7 @@ def view(job_id):
         flash('Job not found.', 'danger')
         return redirect(url_for('main.dashboard'))
     
-    return render_template('job_details.html', title='Job Details', job=job)
+    return render_template('view_job.html', title='Job Details', job=job)
 
 
 @jobs_bp.route('/<job_id>/status')
