@@ -3,12 +3,16 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.urls import url_parse
 import requests
+import logging
 
 from app import limiter
 from app.models import User, Job
 from app.forms import LoginForm, RegistrationForm, SettingsForm, NewJobForm
 from app.tasks import scrape_tweets_task, generate_audio_task
 from config import Config
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Create blueprints
 main_bp = Blueprint('main', __name__)
@@ -195,8 +199,11 @@ def new_job():
         
         # Start the job
         try:
-            scrape_tweets_task.delay(job.id)
+            task = scrape_tweets_task.delay(job.id)
+            logger.info(f"Started job {job.id} with task ID {task.id}")
+            job.update_status('pending', progress_details={"task_id": task.id})
         except Exception as e:
+            logger.error(f"Error starting job {job.id}: {str(e)}", exc_info=True)
             flash(f'Warning: Could not start background task. Celery worker may not be running. Error: {str(e)}', 'warning')
             job.update_status('pending', 'Job created but not started. Celery worker may not be running.')
             
@@ -232,7 +239,9 @@ def status(job_id):
         'status': job.status,
         'updated_at': job.updated_at,
         'audio_files': job.audio_files,
-        'error': job.error
+        'error': job.error,
+        'progress': job.progress,
+        'progress_details': job.progress_details
     })
 
 

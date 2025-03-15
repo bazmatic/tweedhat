@@ -1,0 +1,12 @@
+# Celery configuration
+broker_url = 'redis://localhost:6379/0'
+result_backend = 'redis://localhost:6379/0'
+task_serializer = 'json'
+accept_content = ['json']
+result_serializer = 'json'
+enable_utc = True
+worker_hijack_root_logger = False
+broker_connection_retry_on_startup = True
+task_track_started = True
+worker_send_task_events = True
+task_send_sent_event = True

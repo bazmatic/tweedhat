@@ -141,7 +141,7 @@ class Job:
     def __init__(self, id=None, user_id=None, status="pending", created_at=None, 
                  updated_at=None, target_twitter_handle=None, max_tweets=20, 
                  describe_images=False, voice_id=None, tweet_file=None, 
-                 audio_files=None, error=None):
+                 audio_files=None, error=None, progress=None, progress_details=None):
         self.id = id or str(uuid.uuid4())
         self.user_id = user_id
         self.status = status
@@ -154,6 +154,8 @@ class Job:
         self.tweet_file = tweet_file
         self.audio_files = audio_files or []
         self.error = error
+        self.progress = progress or 0  # Percentage of completion (0-100)
+        self.progress_details = progress_details or {}  # Detailed progress information
     
     def get_file_path(self):
         """Get the path to the job's JSON file."""
@@ -173,7 +175,9 @@ class Job:
             'voice_id': self.voice_id,
             'tweet_file': self.tweet_file,
             'audio_files': self.audio_files,
-            'error': self.error
+            'error': self.error,
+            'progress': self.progress,
+            'progress_details': self.progress_details
         }
         
         # Ensure jobs directory exists
@@ -183,12 +187,48 @@ class Job:
         with open(self.get_file_path(), 'w') as f:
             json.dump(job_data, f, indent=2)
     
-    def update_status(self, status, error=None):
-        """Update job status."""
+    def update_status(self, status, error=None, progress=None, progress_details=None):
+        """
+        Update job status and progress.
+        
+        Args:
+            status (str): New status
+            error (str, optional): Error message
+            progress (int, optional): Progress percentage (0-100)
+            progress_details (dict, optional): Detailed progress information
+        """
         self.status = status
         self.updated_at = datetime.now().isoformat()
+        
         if error:
             self.error = error
+            
+        if progress is not None:
+            self.progress = progress
+            
+        if progress_details:
+            if not self.progress_details:
+                self.progress_details = {}
+            self.progress_details.update(progress_details)
+            
+        # Set default progress based on status
+        if progress is None:
+            if status == "pending":
+                self.progress = 0
+            elif status == "scraping":
+                self.progress = 10
+            elif status == "scraped":
+                self.progress = 20
+            elif status == "generating_audio":
+                self.progress = 30
+            elif status == "completed":
+                self.progress = 100
+                
+        # Add timestamp to progress details
+        if not self.progress_details:
+            self.progress_details = {}
+        self.progress_details[f"status_{status}"] = datetime.now().isoformat()
+        
         self.save()
     
     def add_audio_file(self, audio_file):
@@ -196,6 +236,45 @@ class Job:
         if audio_file not in self.audio_files:
             self.audio_files.append(audio_file)
             self.save()
+    
+    def update_progress(self, current, total, stage="processing"):
+        """
+        Update job progress based on current/total items.
+        
+        Args:
+            current (int): Current item number
+            total (int): Total number of items
+            stage (str): Current processing stage
+        """
+        if stage == "scraping":
+            # Scraping is 0-20% of the process
+            base = 0
+            max_progress = 20
+        elif stage == "processing":
+            # Processing is 30-100% of the process
+            base = 30
+            max_progress = 100
+        else:
+            base = 0
+            max_progress = 100
+            
+        if total > 0:
+            stage_progress = (current / total) * (max_progress - base)
+            self.progress = int(base + stage_progress)
+        else:
+            self.progress = base
+            
+        progress_details = {
+            f"{stage}_current": current,
+            f"{stage}_total": total,
+            f"{stage}_percentage": round((current / total) * 100 if total > 0 else 0, 2)
+        }
+        
+        self.update_status(
+            status=self.status,
+            progress=self.progress,
+            progress_details=progress_details
+        )
     
     @staticmethod
     def get_by_id(job_id):
@@ -219,7 +298,9 @@ class Job:
             voice_id=data['voice_id'],
             tweet_file=data['tweet_file'],
             audio_files=data['audio_files'],
-            error=data['error']
+            error=data['error'],
+            progress=data.get('progress', 0),
+            progress_details=data.get('progress_details', {})
         )
     
     @staticmethod
@@ -250,7 +331,9 @@ class Job:
                         voice_id=data['voice_id'],
                         tweet_file=data['tweet_file'],
                         audio_files=data['audio_files'],
-                        error=data['error']
+                        error=data['error'],
+                        progress=data.get('progress', 0),
+                        progress_details=data.get('progress_details', {})
                     ))
         
         # Sort by created_at (newest first)
