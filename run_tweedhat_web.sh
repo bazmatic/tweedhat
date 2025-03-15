@@ -131,55 +131,26 @@ echo -e "${GREEN}Created data directories for JSON storage.${NC}"
 # Install required Python packages
 echo -e "${GREEN}Checking for required Python packages...${NC}"
 
-# Define the core packages needed - removed any encryption-related packages
-CORE_PACKAGES="flask celery redis flask_login flask_wtf"
-
-# Check if packages are installed
-MISSING_PACKAGES=false
-for package in $CORE_PACKAGES; do
-    if ! python3 -c "import $package" 2>/dev/null; then
-        MISSING_PACKAGES=true
-        break
-    fi
-done
-
-if [ "$MISSING_PACKAGES" = true ]; then
-    echo -e "${YELLOW}Some required packages are missing. Installing dependencies...${NC}"
-    
-    # Try different locations for requirements file
-    if [ -f "requirements-web.txt" ]; then
-        echo -e "${YELLOW}Found requirements-web.txt, but we're using plaintext JSON storage now.${NC}"
-        echo -e "${YELLOW}Installing only the necessary packages...${NC}"
-        pip install flask celery redis flask-login flask-wtf
-    elif [ -f "../requirements-web.txt" ]; then
-        echo -e "${YELLOW}Found requirements-web.txt in parent directory, but we're using plaintext JSON storage now.${NC}"
-        echo -e "${YELLOW}Installing only the necessary packages...${NC}"
-        pip install flask celery redis flask-login flask-wtf
-    else
-        echo -e "${YELLOW}requirements-web.txt not found. Installing core dependencies directly...${NC}"
-        # Install all packages by their pip install name - removed any encryption packages
-        pip install flask celery redis flask-login flask-wtf
-    fi
-    
-    # Verify installation
-    INSTALL_FAILED=false
-    for package in $CORE_PACKAGES; do
-        if ! python3 -c "import $package" 2>/dev/null; then
-            echo -e "${RED}Failed to import $package after installation.${NC}"
-            INSTALL_FAILED=true
-        fi
-    done
-    
-    if [ "$INSTALL_FAILED" = true ]; then
-        echo -e "${RED}Some packages failed to install correctly. Please install them manually:${NC}"
-        echo "pip install flask celery redis flask-login flask-wtf"
-        exit 1
-    fi
-    
-    echo -e "${GREEN}All required packages installed successfully.${NC}"
+# Check if requirements files exist and install from them
+if [ -f "requirements-web.txt" ]; then
+    echo -e "${GREEN}Found requirements-web.txt. Installing packages...${NC}"
+    pip install -r requirements-web.txt
+elif [ -f "../requirements-web.txt" ]; then
+    echo -e "${GREEN}Found requirements-web.txt in parent directory. Installing packages...${NC}"
+    pip install -r ../requirements-web.txt
+elif [ -f "requirements.txt" ]; then
+    echo -e "${GREEN}Found requirements.txt. Installing packages...${NC}"
+    pip install -r requirements.txt
+elif [ -f "../requirements.txt" ]; then
+    echo -e "${GREEN}Found requirements.txt in parent directory. Installing packages...${NC}"
+    pip install -r ../requirements.txt
 else
-    echo -e "${GREEN}All required packages are already installed.${NC}"
+    echo -e "${RED}No requirements files found. Please create a requirements.txt or requirements-web.txt file.${NC}"
+    echo -e "${RED}The application may not function correctly without required packages.${NC}"
+    exit 1
 fi
+
+echo -e "${GREEN}All required packages installed successfully.${NC}"
 
 # Kill any existing Celery workers
 echo -e "${GREEN}Stopping any existing Celery workers...${NC}"
