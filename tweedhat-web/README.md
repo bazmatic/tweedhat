@@ -5,7 +5,7 @@ A web application for scraping tweets from X.com (formerly Twitter) and converti
 ## Features
 
 - User registration and authentication
-- Secure storage of API keys
+- Plaintext storage of API keys and settings
 - Twitter account scraping
 - Text-to-speech conversion using ElevenLabs
 - AI-powered image description (using Anthropic Claude)
@@ -43,7 +43,6 @@ A web application for scraping tweets from X.com (formerly Twitter) and converti
    export FLASK_APP=run.py
    export FLASK_ENV=development
    export SECRET_KEY=your-secret-key
-   export ENCRYPTION_KEY=your-encryption-key
    ```
 
    On Windows:
@@ -51,7 +50,6 @@ A web application for scraping tweets from X.com (formerly Twitter) and converti
    set FLASK_APP=run.py
    set FLASK_ENV=development
    set SECRET_KEY=your-secret-key
-   set ENCRYPTION_KEY=your-encryption-key
    ```
 
 5. Start Redis (required for Celery):
@@ -94,7 +92,7 @@ A web application for scraping tweets from X.com (formerly Twitter) and converti
 
 For production deployment:
 
-1. Set secure values for `SECRET_KEY` and `ENCRYPTION_KEY`
+1. Set a secure value for `SECRET_KEY`
 2. Use a production WSGI server like Gunicorn:
    ```bash
    gunicorn -w 4 -b 0.0.0.0:8000 "run:app"
@@ -106,10 +104,11 @@ For production deployment:
 
 ## Security Notes
 
-- API keys are encrypted before storage
+- API keys are stored in plaintext JSON files
 - Passwords are securely hashed
 - CSRF protection is enabled on all forms
 - Rate limiting is applied to prevent abuse
+- This application is intended for personal use only
 
 ## License
 

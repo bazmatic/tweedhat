@@ -26,7 +26,7 @@ sys.path.append(os.path.dirname(Config.BASE_DIR))
 
 # Import the original modules
 try:
-    from scrape import TwitterScraper
+    from scrape import TweetScraper
     from read_tweets import TweetReader
     from ai_integration import AIImageDescriber
 except ImportError as e:
@@ -52,6 +52,7 @@ def scrape_tweets_task(job_id):
     
     # Update job status
     job.update_status("scraping")
+    logger.info(f"Job {job_id} (@{job.target_twitter_handle}): Scraping up to {job.max_tweets} tweets")
     
     try:
         # Get user settings
@@ -60,8 +61,8 @@ def scrape_tweets_task(job_id):
             job.update_status("failed", "User not found")
             return
         
-        twitter_email = user.get_decrypted_setting('twitter_email')
-        twitter_password = user.get_decrypted_setting('twitter_password')
+        twitter_email = user.get_setting('twitter_email')
+        twitter_password = user.get_setting('twitter_password')
         
         # Create output filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -69,30 +70,35 @@ def scrape_tweets_task(job_id):
         output_path = os.path.join(Config.TWEETS_DIR, output_filename)
         
         # Initialize scraper
-        scraper = TwitterScraper(
+        logger.info(f"Job {job_id}: Initializing TweetScraper for @{job.target_twitter_handle}")
+        scraper = TweetScraper(
+            username=job.target_twitter_handle,
             headless=True,
-            debug=True,
+            max_tweets=job.max_tweets,
             email=twitter_email,
             password=twitter_password
         )
         
         # Scrape tweets
-        logger.info(f"Scraping tweets from {job.target_twitter_handle}")
-        result = scraper.scrape_user(
-            username=job.target_twitter_handle,
-            max_tweets=job.max_tweets,
-            output_file=output_path
-        )
+        logger.info(f"Job {job_id}: Starting tweet scraping for @{job.target_twitter_handle}")
+        tweets = scraper.scrape_tweets()
         
-        if not result:
+        if not tweets:
+            logger.warning(f"Job {job_id}: No tweets found for @{job.target_twitter_handle}")
             job.update_status("failed", "Failed to scrape tweets")
             return
+        
+        # Save tweets to file
+        logger.info(f"Job {job_id}: Scraped {len(tweets)} tweets from @{job.target_twitter_handle}")
+        scraper.save_tweets(tweets, output_path)
+        logger.info(f"Job {job_id}: Saved tweets to {output_path}")
         
         # Update job with tweet file
         job.tweet_file = output_path
         job.update_status("scraped")
         
         # Start audio generation
+        logger.info(f"Job {job_id}: Queueing audio generation task")
         generate_audio_task.delay(job_id)
         
     except Exception as e:
@@ -126,10 +132,11 @@ def generate_audio_task(job_id):
             job.update_status("failed", "User not found")
             return
         
-        elevenlabs_api_key = user.get_decrypted_setting('elevenlabs_api_key')
-        anthropic_api_key = user.get_decrypted_setting('anthropic_api_key')
+        elevenlabs_api_key = user.get_setting('elevenlabs_api_key')
+        anthropic_api_key = user.get_setting('anthropic_api_key')
         
         if not elevenlabs_api_key:
+            logger.error(f"Job {job_id}: ElevenLabs API key not found")
             job.update_status("failed", "ElevenLabs API key not found")
             return
         
@@ -137,8 +144,10 @@ def generate_audio_task(job_id):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_dir = os.path.join(Config.AUDIO_DIR, f"{job.target_twitter_handle}_{timestamp}")
         os.makedirs(output_dir, exist_ok=True)
+        logger.info(f"Job {job_id}: Created output directory for audio files: {output_dir}")
         
         # Initialize tweet reader
+        logger.info(f"Job {job_id}: Initializing TweetReader with voice ID: {job.voice_id}")
         reader = TweetReader(
             json_file=job.tweet_file,
             api_key=elevenlabs_api_key,
@@ -149,28 +158,34 @@ def generate_audio_task(job_id):
         )
         
         # Load tweets
+        logger.info(f"Job {job_id}: Loading tweets from {job.tweet_file}")
         data = reader.load_tweets()
         if not data:
+            logger.error(f"Job {job_id}: Failed to load tweets from {job.tweet_file}")
             job.update_status("failed", "Failed to load tweets")
             return
         
         tweets = data.get('tweets', [])
         if not tweets:
+            logger.error(f"Job {job_id}: No tweets found in {job.tweet_file}")
             job.update_status("failed", "No tweets found")
             return
+        
+        logger.info(f"Job {job_id}: Processing {len(tweets)} tweets for audio generation")
         
         # Process each tweet
         for i, tweet in enumerate(tweets):
             try:
-                logger.info(f"Processing tweet {i+1}/{len(tweets)}")
+                logger.info(f"Job {job_id}: Processing tweet {i+1}/{len(tweets)}")
                 
                 # Format the tweet for speech
                 text = reader.format_tweet_for_speech(tweet)
                 
                 # Generate audio
+                logger.info(f"Job {job_id}: Generating audio for tweet {i+1}")
                 audio_data = reader.text_to_speech(text)
                 if not audio_data:
-                    logger.warning(f"Failed to generate audio for tweet {i+1}")
+                    logger.warning(f"Job {job_id}: Failed to generate audio for tweet {i+1}")
                     continue
                 
                 # Save audio
@@ -180,6 +195,8 @@ def generate_audio_task(job_id):
                 with open(filename, 'wb') as f:
                     f.write(audio_data)
                 
+                logger.info(f"Job {job_id}: Saved audio for tweet {i+1} to {filename}")
+                
                 # Add audio file to job
                 job.add_audio_file(filename)
                 
@@ -187,10 +204,11 @@ def generate_audio_task(job_id):
                 job.update_status("processing", f"Processed {i+1}/{len(tweets)} tweets")
                 
             except Exception as e:
-                logger.error(f"Error processing tweet {i+1}: {e}", exc_info=True)
+                logger.error(f"Job {job_id}: Error processing tweet {i+1}: {e}", exc_info=True)
                 # Continue with next tweet
         
         # Update job status
+        logger.info(f"Job {job_id}: Completed audio generation for all tweets")
         job.update_status("completed")
         
     except Exception as e:

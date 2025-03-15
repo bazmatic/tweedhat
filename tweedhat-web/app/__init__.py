@@ -1,9 +1,8 @@
 import os
 from flask import Flask
 from flask_login import LoginManager
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from celery import Celery
+from datetime import datetime
 
 from config import config
 
@@ -12,13 +11,11 @@ login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
 login_manager.login_message_category = 'info'
 
-limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
-)
-
 # Initialize Celery
-celery = Celery(__name__)
+celery = Celery(__name__, 
+                broker=os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0'),
+                backend=os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0'),
+                include=['app.tasks'])
 
 def create_app(config_name=None):
     if config_name is None:
@@ -30,10 +27,14 @@ def create_app(config_name=None):
     
     # Initialize extensions with app
     login_manager.init_app(app)
-    limiter.init_app(app)
     
     # Configure Celery
     celery.conf.update(app.config)
+    
+    # Add context processor for template variables
+    @app.context_processor
+    def inject_now():
+        return {'now': datetime.now()}
     
     # Register blueprints
     from app.routes import main_bp, auth_bp, jobs_bp

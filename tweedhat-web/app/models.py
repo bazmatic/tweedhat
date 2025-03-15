@@ -2,17 +2,15 @@ import os
 import json
 import uuid
 import time
+import logging
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
-from cryptography.fernet import Fernet
 from app import login_manager
 from config import Config
 
-# Encryption key for sensitive data
-# In production, this should be stored securely and not in the code
-ENCRYPTION_KEY = os.environ.get('ENCRYPTION_KEY') or Fernet.generate_key()
-cipher_suite = Fernet(ENCRYPTION_KEY)
+# Set up logging
+logger = logging.getLogger(__name__)
 
 class User(UserMixin):
     """User model for authentication and storing user data in JSON files."""
@@ -49,17 +47,7 @@ class User(UserMixin):
             'settings': self.settings
         }
         
-        # Encrypt sensitive settings
-        encrypted_settings = {}
-        for key, value in self.settings.items():
-            if key in ['elevenlabs_api_key', 'anthropic_api_key', 'twitter_email', 'twitter_password']:
-                if value:  # Only encrypt if value exists
-                    encrypted_settings[key] = cipher_suite.encrypt(value.encode()).decode()
-            else:
-                encrypted_settings[key] = value
-        
-        user_data['settings'] = encrypted_settings
-        
+        # Store settings as plaintext
         with open(self.get_file_path(), 'w') as f:
             json.dump(user_data, f, indent=2)
     
@@ -68,22 +56,12 @@ class User(UserMixin):
         self.last_login = datetime.now().isoformat()
         self.save()
     
-    def get_decrypted_setting(self, key):
-        """Get a decrypted setting value."""
+    def get_setting(self, key):
+        """Get a setting value."""
         if key not in self.settings:
             return None
         
-        value = self.settings.get(key)
-        if not value:
-            return None
-            
-        if key in ['elevenlabs_api_key', 'anthropic_api_key', 'twitter_email', 'twitter_password']:
-            try:
-                return cipher_suite.decrypt(value.encode()).decode()
-            except Exception:
-                # If the value is not encrypted, return as is
-                return value
-        return value
+        return self.settings.get(key)
     
     def set_setting(self, key, value):
         """Set a setting value."""
@@ -185,10 +163,14 @@ class Job:
     
     def update_status(self, status, error=None):
         """Update job status."""
+        old_status = self.status
         self.status = status
         self.updated_at = datetime.now().isoformat()
         if error:
             self.error = error
+            logger.error(f"Job {self.id} (@{self.target_twitter_handle}) status changed: {old_status} -> {status}, Error: {error}")
+        else:
+            logger.info(f"Job {self.id} (@{self.target_twitter_handle}) status changed: {old_status} -> {status}")
         self.save()
     
     def add_audio_file(self, audio_file):
@@ -253,12 +235,9 @@ class Job:
                         error=data['error']
                     ))
         
-        # Sort by created_at (newest first)
-        jobs.sort(key=lambda x: x.created_at, reverse=True)
         return jobs
-
 
 @login_manager.user_loader
 def load_user(user_id):
-    """Load a user for Flask-Login."""
+    """Load user by ID for Flask-Login."""
     return User.get_by_id(user_id) 

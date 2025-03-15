@@ -4,7 +4,6 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.urls import url_parse
 import requests
 
-from app import limiter
 from app.models import User, Job
 from app.forms import LoginForm, RegistrationForm, SettingsForm, NewJobForm
 from app.tasks import scrape_tweets_task, generate_audio_task
@@ -58,10 +57,10 @@ def settings():
     
     # Pre-fill form with existing settings
     if not form.is_submitted():
-        form.elevenlabs_api_key.data = current_user.get_decrypted_setting('elevenlabs_api_key') or ''
-        form.anthropic_api_key.data = current_user.get_decrypted_setting('anthropic_api_key') or ''
-        form.twitter_email.data = current_user.get_decrypted_setting('twitter_email') or ''
-        form.twitter_password.data = current_user.get_decrypted_setting('twitter_password') or ''
+        form.elevenlabs_api_key.data = current_user.get_setting('elevenlabs_api_key') or ''
+        form.anthropic_api_key.data = current_user.get_setting('anthropic_api_key') or ''
+        form.twitter_email.data = current_user.get_setting('twitter_email') or ''
+        form.twitter_password.data = current_user.get_setting('twitter_password') or ''
         form.default_voice_id.data = current_user.settings.get('default_voice_id', '')
     
     return render_template('settings.html', title='Settings', form=form)
@@ -71,7 +70,7 @@ def settings():
 @login_required
 def list_voices():
     """List available voices from ElevenLabs."""
-    api_key = current_user.get_decrypted_setting('elevenlabs_api_key')
+    api_key = current_user.get_setting('elevenlabs_api_key')
     
     if not api_key:
         flash('Please set your ElevenLabs API key in settings.', 'warning')
@@ -147,11 +146,10 @@ def register():
 # Jobs routes
 @jobs_bp.route('/new', methods=['GET', 'POST'])
 @login_required
-@limiter.limit("5 per minute")
 def new_job():
     """Create a new job."""
     # Check if user has set required API keys
-    elevenlabs_api_key = current_user.get_decrypted_setting('elevenlabs_api_key')
+    elevenlabs_api_key = current_user.get_setting('elevenlabs_api_key')
     
     if not elevenlabs_api_key:
         flash('Please set your ElevenLabs API key in settings.', 'warning')
@@ -212,7 +210,7 @@ def view(job_id):
         flash('Job not found.', 'danger')
         return redirect(url_for('main.dashboard'))
     
-    return render_template('job_details.html', title='Job Details', job=job)
+    return render_template('view_job.html', title='Job Details', job=job)
 
 
 @jobs_bp.route('/<job_id>/status')
@@ -242,9 +240,14 @@ def download_audio(job_id, filename):
         flash('Job not found.', 'danger')
         return redirect(url_for('main.dashboard'))
     
-    # Check if the file belongs to this job
-    file_path = os.path.join(Config.AUDIO_DIR, filename)
-    if not os.path.exists(file_path) or filename not in [os.path.basename(f) for f in job.audio_files]:
+    # Find the full path of the audio file in the job's audio_files list
+    file_path = None
+    for audio_file in job.audio_files:
+        if os.path.basename(audio_file) == filename:
+            file_path = audio_file
+            break
+    
+    if not file_path or not os.path.exists(file_path):
         flash('File not found.', 'danger')
         return redirect(url_for('jobs.view', job_id=job.id))
     

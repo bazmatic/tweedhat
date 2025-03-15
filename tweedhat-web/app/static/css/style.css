@@ -1,0 +1,125 @@
+/* TweedHat Web Application Styles */
+
+/* Global styles */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+    color: #333;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.container {
+    flex: 1;
+}
+
+/* Navbar styles */
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+/* Card styles */
+.card {
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    border: none;
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    font-weight: 600;
+}
+
+/* Button styles */
+.btn-primary {
+    background-color: #4a6fdc;
+    border-color: #4a6fdc;
+}
+
+.btn-primary:hover {
+    background-color: #3a5fc9;
+    border-color: #3a5fc9;
+}
+
+.btn-outline-primary {
+    color: #4a6fdc;
+    border-color: #4a6fdc;
+}
+
+.btn-outline-primary:hover {
+    background-color: #4a6fdc;
+    border-color: #4a6fdc;
+}
+
+/* Footer styles */
+.footer {
+    margin-top: auto;
+    padding: 1.5rem 0;
+    background-color: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+}
+
+/* Job status colors */
+.status-pending {
+    color: #6c757d;
+}
+
+.status-scraping, .status-processing {
+    color: #ffc107;
+}
+
+.status-scraped, .status-generating_audio {
+    color: #17a2b8;
+}
+
+.status-completed {
+    color: #28a745;
+}
+
+.status-failed {
+    color: #dc3545;
+}
+
+/* Form styles */
+.form-control:focus {
+    border-color: #4a6fdc;
+    box-shadow: 0 0 0 0.25rem rgba(74, 111, 220, 0.25);
+}
+
+/* Audio player styles */
+.audio-player {
+    width: 100%;
+    margin-bottom: 0.5rem;
+}
+
+/* Tweet list styles */
+.tweet-list {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+/* Job details page */
+.job-info-item {
+    margin-bottom: 0.75rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 1rem;
+    }
+}
+
+/* Animation for loading states */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.loading {
+    animation: pulse 1.5s infinite;
+} 
