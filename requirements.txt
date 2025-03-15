@@ -4,8 +4,8 @@ pygame==2.6.1
 mutagen==1.47.0
 webdriver-manager==4.0.1
 python-dotenv==1.0.0
-langchain==0.1.12
-langchain-anthropic==0.1.4
-langchain-openai==0.1.5
+langchain>=0.1.12
+langchain-anthropic>=0.1.4
+langchain-openai>=0.1.5
 pillow==10.2.0
-langchain-core==0.1.30 
+langchain-core>=0.1.31 
