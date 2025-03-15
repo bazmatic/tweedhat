@@ -922,12 +922,20 @@ class TweetScraper:
             
             # Get media links (images, videos)
             media_links = []
+            has_video = False
             try:
+                # Check for images
                 media_elements = tweet_element.find_elements(By.CSS_SELECTOR, "img[src*='media']")
                 for media in media_elements:
                     src = media.get_attribute("src")
                     if src and "profile" not in src and src not in media_links:
                         media_links.append(src)
+                
+                # Check for videos
+                video_elements = tweet_element.find_elements(By.CSS_SELECTOR, "div[data-testid='videoPlayer']")
+                if video_elements:
+                    has_video = True
+                    
                 logger.debug(f"Extracted {len(media_links)} media links")
             except Exception as e:
                 logger.warning(f"Error extracting media links: {e}")
@@ -938,7 +946,10 @@ class TweetScraper:
                 "text": text,
                 "timestamp": timestamp,
                 "stats": stats,
-                "media": media_links
+                "media": media_links,
+                "has_video": has_video,
+                "has_media": len(media_links) > 0 or has_video,
+                "source": "x.com"
             }
         except Exception as e:
             logger.error(f"Error extracting tweet data: {e}", exc_info=True)
@@ -1008,14 +1019,42 @@ class TweetScraper:
             # Get media links
             media_links = []
             try:
+                # Try multiple selectors to find images
+                # First try the original selector
                 media_elements = tweet_element.find_elements(By.CSS_SELECTOR, ".still-image")
+                
+                # If no images found, try alternative selectors
+                if not media_elements:
+                    media_elements = tweet_element.find_elements(By.CSS_SELECTOR, ".attachment img")
+                
+                if not media_elements:
+                    media_elements = tweet_element.find_elements(By.CSS_SELECTOR, ".media-image img")
+                
+                if not media_elements:
+                    media_elements = tweet_element.find_elements(By.CSS_SELECTOR, ".tweet-body img:not(.emoji):not(.profile-pic)")
+                
+                # Extract src attributes from found elements
                 for media in media_elements:
                     src = media.get_attribute("src")
-                    if src:
+                    if src and "profile" not in src and src not in media_links:
+                        # Convert relative URLs to absolute URLs if needed
+                        if src.startswith('/'):
+                            base_url = self.driver.current_url.split('/status')[0]
+                            src = f"{base_url}{src}"
                         media_links.append(src)
+                
+                # Also check for video elements
+                video_elements = tweet_element.find_elements(By.CSS_SELECTOR, ".video-container")
+                if video_elements:
+                    # Mark that this tweet has a video
+                    has_video = True
+                else:
+                    has_video = False
+                
                 logger.debug(f"Extracted {len(media_links)} media links from nitter")
             except Exception as e:
                 logger.warning(f"Error extracting media links from nitter: {e}")
+                has_video = False
             
             return {
                 "id": tweet_id,
@@ -1024,6 +1063,8 @@ class TweetScraper:
                 "timestamp": timestamp,
                 "stats": stats,
                 "media": media_links,
+                "has_video": has_video,
+                "has_media": len(media_links) > 0 or has_video,
                 "source": "nitter"
             }
         except Exception as e:
