@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Dashboard</h1>
+            <a href="{{ url_for('jobs.new_job') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>New Job
+            </a>
+        </div>
+        
+        {% if jobs %}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Your Jobs</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Twitter Handle</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Audio Files</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for job in jobs %}
+                        <tr>
+                            <td>
+                                <a href="{{ url_for('jobs.view', job_id=job.id) }}">
+                                    @{{ job.target_twitter_handle }}
+                                </a>
+                            </td>
+                            <td>
+                                {% if job.status == 'pending' %}
+                                <span class="badge bg-secondary">Pending</span>
+                                {% elif job.status == 'scraping' %}
+                                <span class="badge bg-info">Scraping</span>
+                                {% elif job.status == 'scraped' %}
+                                <span class="badge bg-info">Scraped</span>
+                                {% elif job.status == 'generating_audio' %}
+                                <span class="badge bg-info">Generating Audio</span>
+                                {% elif job.status == 'processing' %}
+                                <span class="badge bg-info">Processing</span>
+                                {% elif job.status == 'completed' %}
+                                <span class="badge bg-success">Completed</span>
+                                {% elif job.status == 'failed' %}
+                                <span class="badge bg-danger">Failed</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ job.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if job.created_at is string %}
+                                    {{ job.created_at }}
+                                {% else %}
+                                    {{ job.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                {% endif %}
+                            </td>
+                            <td>{{ job.audio_files|length }}</td>
+                            <td>
+                                <a href="{{ url_for('jobs.view', job_id=job.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                        data-bs-toggle="modal" data-bs-target="#deleteModal{{ job.id }}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                
+                                <!-- Delete Modal -->
+                                <div class="modal fade" id="deleteModal{{ job.id }}" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Confirm Deletion</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                Are you sure you want to delete the job for @{{ job.target_twitter_handle }}?
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                <form action="{{ url_for('jobs.delete_job', job_id=job.id) }}" method="post">
+                                                    <button type="submit" class="btn btn-danger">Delete</button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <p class="mb-0">You don't have any jobs yet. <a href="{{ url_for('jobs.new_job') }}">Create your first job</a> to get started!</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %} 

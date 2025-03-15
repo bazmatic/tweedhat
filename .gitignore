@@ -31,14 +31,6 @@ ENV/
 logs/
 
 # Scraped data and media
-*.json
-*.html
-*.png
-*.jpg
-*.jpeg
-*.mp3
-*.mp4
-*.wav
 tweet_audio/*
 !tweet_audio/.gitkeep
 
@@ -49,6 +41,29 @@ tweet_audio/*
 .env
 credentials.json
 *_cookies.json
+
+# /data
+*/data/*
+!data/.gitkeep
+*/data/images/*
+!data/images/.gitkeep
+*/data/tweets/*
+!data/tweets/.gitkeep
+*/data/users/*
+!data/users/.gitkeep
+*/images/*
+!images/.gitkeep
+*/data/audio/*
+!data/audio/.gitkeep
+*/data/jobs/*
+!data/jobs/.gitkeep
+/images/*
+!images/.gitkeep
+/tweets/*
+
+
+*/tweets/*
+!tweets/.gitkeep
 
 # IDE specific files
 .idea/
@@ -64,9 +79,7 @@ credentials.json
 .env
 
 # Folder contents but keep the folders
-tweets/*
 !tweets/.gitkeep
-images/*
-!images/.gitkeep
+
 
 # ... existing code ... 

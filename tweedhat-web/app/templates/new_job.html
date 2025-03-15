@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Create New Job</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('jobs.new_job') }}">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.target_twitter_handle.label(class="form-label") }}
+                        <div class="input-group">
+                            <span class="input-group-text">@</span>
+                            {{ form.target_twitter_handle(class="form-control", placeholder="elonmusk") }}
+                        </div>
+                        {% for error in form.target_twitter_handle.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                        <div class="form-text">Enter the Twitter/X handle without the @ symbol</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.max_tweets.label(class="form-label") }}
+                        {{ form.max_tweets(class="form-control") }}
+                        {% for error in form.max_tweets.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                        <div class="form-text">Maximum number of tweets to scrape (1-100)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.voice_id.label(class="form-label") }}
+                        {{ form.voice_id(class="form-select") }}
+                        {% for error in form.voice_id.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                        <div class="form-text">
+                            Select a voice for the audio. <a href="{{ url_for('main.list_voices') }}" target="_blank">Preview voices</a>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        {{ form.describe_images(class="form-check-input") }}
+                        {{ form.describe_images.label(class="form-check-label") }}
+                        {% for error in form.describe_images.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                        <div class="form-text">
+                            Use AI to describe images in tweets (requires Anthropic API key in settings)
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
