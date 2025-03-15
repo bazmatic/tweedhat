@@ -283,9 +283,9 @@ class TweetReader:
                         
                         # Add the video description to the formatted text
                         if len(video_previews) > 1:
-                            formatted_text += f" Video {i+1} appears to show: {description}"
+                            formatted_text += f" Video {i+1}: {description}"
                         else:
-                            formatted_text += f" The video appears to show: {description}"
+                            formatted_text += f" {description}"
                         logger.info(f"Added video description: {description[:100]}...")
                     else:
                         logger.warning(f"Failed to get valid description for video preview: {description[:100] if description else 'None'}")
