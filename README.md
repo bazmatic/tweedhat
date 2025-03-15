@@ -53,11 +53,15 @@ Options:
 1. Clone this repository
 2. Install dependencies:
    ```bash
-   pip install selenium requests pygame mutagen
+   pip install -r requirements.txt
    ```
 3. Get an ElevenLabs API key from [ElevenLabs](https://elevenlabs.io/)
-4. Run the scraper to collect tweets
-5. Run the reader to listen to the tweets
+4. Create a `.env` file in the project root with your API key:
+   ```
+   ELEVENLABS_API_KEY="your_api_key_here"
+   ```
+5. Run the scraper to collect tweets
+6. Run the reader to listen to the tweets
 
 ## Example Usage
 
@@ -85,4 +89,5 @@ Options:
 
 - The scraper works best when logged in to X.com
 - X.com has bot detection that may block scraping attempts
-- ElevenLabs has usage limits based on your subscription 
+- ElevenLabs has usage limits based on your subscription
+- Keep your API key secure by using the `.env` file and not committing it to version control 

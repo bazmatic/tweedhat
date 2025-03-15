@@ -13,6 +13,10 @@ from pathlib import Path
 from datetime import datetime
 from mutagen.mp3 import MP3
 import re
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(
@@ -25,9 +29,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Your ElevenLabs API key - hardcoded for convenience
-# Note: Hardcoding API keys is generally not recommended for shared code
-ELEVENLABS_API_KEY = "sk_018a6f545f5a9f0d76c9ce21779fea3ce25321a42e8fa637"
+# Get ElevenLabs API key from environment variable
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 
 class TweetReader:
     def __init__(self, json_file, api_key=None, voice_id="21m00Tcm4TlvDq8ikWAM", save_audio=False, output_dir=None):
@@ -42,7 +45,7 @@ class TweetReader:
             output_dir (str): Directory to save audio files
         """
         self.json_file = json_file
-        self.api_key = api_key or ELEVENLABS_API_KEY  # Use hardcoded key if none provided
+        self.api_key = api_key or ELEVENLABS_API_KEY  # Use environment variable if none provided
         self.voice_id = voice_id
         self.save_audio = save_audio
         self.api_url = "https://api.elevenlabs.io/v1"
