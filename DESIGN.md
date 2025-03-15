@@ -51,14 +51,24 @@ The main script ties all components together:
 - Coordinates the scraping and reading processes
 - Manages error handling and logging
 
+### 5. Folder Structure
+
+The project uses a dedicated folder structure to organize content:
+
+- **tweets/**: Stores JSON files containing scraped tweets
+- **images/**: Stores downloaded images from tweets for AI processing
+- **tweet_audio/**: Stores generated audio files of tweets
+
+This structure ensures that all content is properly organized and easily accessible.
+
 ## Data Flow
 
 1. User provides a Twitter/X.com username via command line
-2. Scraper collects tweets and saves them to a JSON file
+2. Scraper collects tweets and saves them to a JSON file in the `tweets/` folder
 3. Reader loads the JSON file and processes each tweet
-4. For tweets with images, the AI integration module generates descriptions
+4. For tweets with images, the AI integration module downloads images to the `images/` folder and generates descriptions
 5. Text (including image descriptions) is sent to ElevenLabs for speech synthesis
-6. Audio is played back to the user and optionally saved
+6. Audio is played back to the user and optionally saved to the `tweet_audio/` folder
 
 ## Technical Implementation Details
 

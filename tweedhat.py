@@ -18,6 +18,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Define folder paths
+TWEETS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tweets")
+IMAGES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
+AUDIO_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tweet_audio")
+
+# Create folders if they don't exist
+os.makedirs(TWEETS_FOLDER, exist_ok=True)
+os.makedirs(IMAGES_FOLDER, exist_ok=True)
+os.makedirs(AUDIO_FOLDER, exist_ok=True)
+
 def run_scraper(username, max_tweets=None, visible=False, debug=False, email=None, password=None, no_profile=False):
     """
     Run the tweet scraper to collect tweets from a user.
@@ -69,7 +79,17 @@ def run_scraper(username, max_tweets=None, visible=False, debug=False, email=Non
                 logger.info(f"Tweets saved to {json_file}")
                 return json_file
         
+        # If we couldn't find the output file path, look for the most recent file in the tweets folder
         logger.warning("Could not find the output file path in the scraper output")
+        tweet_files = [f for f in os.listdir(TWEETS_FOLDER) if f.startswith(f"{username}_tweets_") and f.endswith(".json")]
+        if tweet_files:
+            # Sort by modification time, newest first
+            tweet_files.sort(key=lambda x: os.path.getmtime(os.path.join(TWEETS_FOLDER, x)), reverse=True)
+            json_file = os.path.join(TWEETS_FOLDER, tweet_files[0])
+            logger.info(f"Using most recent tweet file: {json_file}")
+            return json_file
+        
+        logger.error("No tweet files found for this user")
         return None
     except subprocess.CalledProcessError as e:
         logger.error(f"Error running scraper: {e}")
@@ -95,6 +115,14 @@ def run_reader(json_file, voice_id=None, save_audio=False, output_dir=None, dela
     """
     logger.info(f"Reading tweets from {json_file}...")
     
+    # If json_file doesn't include the full path and is not in the current directory,
+    # check if it's in the tweets folder
+    if not os.path.isabs(json_file) and not os.path.exists(json_file):
+        tweets_path = os.path.join(TWEETS_FOLDER, json_file)
+        if os.path.exists(tweets_path):
+            json_file = tweets_path
+            logger.info(f"Found tweet file in tweets folder: {json_file}")
+    
     # Build the command
     cmd = ["python", "read_tweets.py", json_file]
     
@@ -106,6 +134,9 @@ def run_reader(json_file, voice_id=None, save_audio=False, output_dir=None, dela
     
     if output_dir:
         cmd.extend(["--output-dir", output_dir])
+    else:
+        # Use the default audio folder if not specified
+        cmd.extend(["--output-dir", AUDIO_FOLDER])
     
     if delay != 2:  # Only add if not the default
         cmd.extend(["--delay", str(delay)])

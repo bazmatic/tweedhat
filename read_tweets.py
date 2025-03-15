@@ -41,6 +41,16 @@ logger = logging.getLogger(__name__)
 # Get ElevenLabs API key from environment variable
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 
+# Define folder paths
+TWEETS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tweets")
+IMAGES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
+AUDIO_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tweet_audio")
+
+# Create folders if they don't exist
+os.makedirs(TWEETS_FOLDER, exist_ok=True)
+os.makedirs(IMAGES_FOLDER, exist_ok=True)
+os.makedirs(AUDIO_FOLDER, exist_ok=True)
+
 class TweetReader:
     def __init__(self, json_file, api_key=None, voice_id="21m00Tcm4TlvDq8ikWAM", save_audio=False, output_dir=None, describe_images=False):
         """
@@ -54,7 +64,18 @@ class TweetReader:
             output_dir (str): Directory to save audio files
             describe_images (bool): Whether to use AI to describe images in tweets
         """
-        self.json_file = json_file
+        # If json_file doesn't include the full path and is not in the current directory,
+        # check if it's in the tweets folder
+        if not os.path.isabs(json_file) and not os.path.exists(json_file):
+            tweets_path = os.path.join(TWEETS_FOLDER, json_file)
+            if os.path.exists(tweets_path):
+                self.json_file = tweets_path
+                logger.info(f"Found tweet file in tweets folder: {tweets_path}")
+            else:
+                self.json_file = json_file
+        else:
+            self.json_file = json_file
+            
         self.api_key = api_key or ELEVENLABS_API_KEY  # Use environment variable if none provided
         self.voice_id = voice_id
         self.save_audio = save_audio
@@ -65,7 +86,7 @@ class TweetReader:
         if self.describe_images:
             if AI_INTEGRATION_AVAILABLE:
                 try:
-                    self.image_describer = AIImageDescriber()
+                    self.image_describer = AIImageDescriber(images_folder=IMAGES_FOLDER)
                     logger.info("AI image description enabled")
                 except Exception as e:
                     logger.error(f"Error initializing AI image describer: {e}")
@@ -83,13 +104,13 @@ class TweetReader:
             if output_dir:
                 self.output_dir = Path(output_dir)
             else:
-                self.output_dir = Path("tweet_audio")
+                self.output_dir = Path(AUDIO_FOLDER)
             
             # Create output directory if it doesn't exist
             os.makedirs(self.output_dir, exist_ok=True)
             logger.info(f"Audio files will be saved to {self.output_dir}")
         
-        logger.info(f"Initializing TweetReader for file: {json_file}")
+        logger.info(f"Initializing TweetReader for file: {self.json_file}")
         logger.info(f"Using voice ID: {voice_id}")
         logger.info(f"Save audio: {save_audio}")
         
@@ -163,7 +184,11 @@ class TweetReader:
         timestamp = tweet.get('timestamp', '')
         has_video = tweet.get('has_video', False)
         has_media = tweet.get('has_media', False)
+        
+        # Get media links from either 'media_links' or 'media' field
         media_links = tweet.get('media_links', [])
+        if not media_links and 'media' in tweet:
+            media_links = tweet.get('media', [])
         
         # Check for video-related text patterns
         video_patterns = [

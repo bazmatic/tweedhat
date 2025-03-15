@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
+import hashlib
 
 # Load environment variables
 load_dotenv()
@@ -22,9 +23,19 @@ class AIImageDescriber:
     Class to describe images using AI models (Anthropic Claude or OpenAI GPT-4 Vision).
     """
     
-    def __init__(self):
-        """Initialize the AI image describer with the appropriate model."""
+    def __init__(self, images_folder=None):
+        """
+        Initialize the AI image describer with the appropriate model.
+        
+        Args:
+            images_folder (str, optional): Path to folder for storing downloaded images
+        """
         self.ai_provider = os.getenv("AI_PROVIDER", "anthropic").lower()
+        self.images_folder = images_folder or os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
+        
+        # Create images folder if it doesn't exist
+        os.makedirs(self.images_folder, exist_ok=True)
+        logger.info(f"Using images folder: {self.images_folder}")
         
         if self.ai_provider == "anthropic":
             self.api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -171,14 +182,28 @@ class AIImageDescriber:
             if not image_data:
                 return "Could not download the image."
             
-            # Save to a temporary file
-            temp_path = Path("temp_image.jpg")
+            # Generate a filename based on the URL
+            url_hash = hashlib.md5(image_path_or_url.encode()).hexdigest()
+            filename = f"image_{url_hash}.jpg"
+            temp_path = os.path.join(self.images_folder, filename)
+            
+            # Save to the images folder
             with open(temp_path, "wb") as f:
                 f.write(image_data.getvalue())
             
-            image_path = str(temp_path)
+            image_path = temp_path
+            logger.info(f"Saved image to {image_path}")
         else:
-            image_path = image_path_or_url
+            # If it's a relative path and not in the current directory, check if it's in the images folder
+            if not os.path.isabs(image_path_or_url) and not os.path.exists(image_path_or_url):
+                images_path = os.path.join(self.images_folder, image_path_or_url)
+                if os.path.exists(images_path):
+                    image_path = images_path
+                    logger.info(f"Found image in images folder: {image_path}")
+                else:
+                    image_path = image_path_or_url
+            else:
+                image_path = image_path_or_url
         
         # Check if the file exists
         if not os.path.exists(image_path):
@@ -190,10 +215,6 @@ class AIImageDescriber:
             base64_image = self._encode_image_to_base64(image_path)
             if not base64_image:
                 return "Could not process the image."
-            
-            # Clean up temporary file if it was created
-            if image_path_or_url.startswith(('http://', 'https://')) and os.path.exists(temp_path):
-                os.remove(temp_path)
             
             # Create the message based on the AI provider
             if self.ai_provider == "anthropic":

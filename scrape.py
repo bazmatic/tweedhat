@@ -5,6 +5,8 @@ import argparse
 import logging
 import getpass
 import random
+import re
+import requests
 from pathlib import Path
 from datetime import datetime
 from selenium import webdriver
@@ -13,9 +15,10 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException, StaleElementReferenceException
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
+from webdriver_manager.chrome import ChromeDriverManager
 
 # Set up logging
 logging.basicConfig(
@@ -27,6 +30,14 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Define folder paths
+TWEETS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tweets")
+IMAGES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
+
+# Create folders if they don't exist
+os.makedirs(TWEETS_FOLDER, exist_ok=True)
+os.makedirs(IMAGES_FOLDER, exist_ok=True)
 
 class TweetScraper:
     def __init__(self, username, headless=True, max_tweets=None, email=None, password=None, use_profile=True, profile_dir=None, user_agent=None):
@@ -1019,21 +1030,34 @@ class TweetScraper:
             logger.error(f"Error extracting tweet data from nitter: {e}", exc_info=True)
             return None
     
-    def save_to_json(self, tweets, filename=None):
+    def save_tweets(self, tweets, output_file=None):
         """
         Save tweets to a JSON file.
         
         Args:
             tweets (list): List of tweet dictionaries
-            filename (str, optional): Output filename
-        
+            output_file (str, optional): Output file path
+            
         Returns:
             str: Path to the saved file
         """
-        if not filename:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{self.username}_tweets_{timestamp}.json"
+        if not tweets:
+            logger.warning("No tweets to save")
+            return None
         
+        # Generate output filename if not provided
+        if not output_file:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_file = f"{self.username}_tweets_{timestamp}.json"
+        
+        # Ensure the output file is in the tweets folder
+        if not os.path.isabs(output_file):
+            output_file = os.path.join(TWEETS_FOLDER, output_file)
+        
+        # Create the tweets folder if it doesn't exist
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        
+        # Prepare data
         data = {
             "username": self.username,
             "scraped_at": datetime.now().isoformat(),
@@ -1041,15 +1065,15 @@ class TweetScraper:
             "tweets": tweets
         }
         
-        logger.info(f"Saving {len(tweets)} tweets to {filename}")
+        # Save to file
         try:
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            logger.info(f"Successfully saved tweets to {filename}")
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            logger.info(f"Successfully saved tweets to {output_file}")
+            return output_file
         except Exception as e:
-            logger.error(f"Error saving tweets to file: {e}", exc_info=True)
-        
-        return filename
+            logger.error(f"Error saving tweets: {e}", exc_info=True)
+            return None
     
     def close(self):
         """Close the WebDriver"""
@@ -1097,7 +1121,7 @@ def main():
     try:
         tweets = scraper.scrape_tweets()
         if tweets:
-            scraper.save_to_json(tweets, args.output)
+            scraper.save_tweets(tweets, args.output)
         else:
             logger.warning("No tweets were scraped.")
     except Exception as e:
