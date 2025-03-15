@@ -1,0 +1,32 @@
+{
+  "username": "example_user",
+  "profile_url": "https://x.com/example_user",
+  "scrape_time": "2025-03-15T19:35:00",
+  "tweet_count": 3,
+  "tweets": [
+    {
+      "id": "1234567890123456789",
+      "text": "This is an example tweet with a link https://example.com and a hashtag #example",
+      "timestamp": "Mar 15, 2025 · 7:35 PM UTC",
+      "has_media": false,
+      "has_video": false,
+      "media_links": []
+    },
+    {
+      "id": "9876543210987654321",
+      "text": "Another example tweet with a mention @someone and multiple hashtags #AI #ML #Python",
+      "timestamp": "Mar 14, 2025 · 3:22 PM UTC",
+      "has_media": true,
+      "has_video": false,
+      "media_links": ["https://example.com/image.jpg"]
+    },
+    {
+      "id": "5678901234567890123",
+      "text": "Example tweet with a video about machine learning https://youtube.com/watch?v=example",
+      "timestamp": "Mar 10, 2025 · 9:15 AM UTC",
+      "has_media": true,
+      "has_video": true,
+      "media_links": ["https://example.com/video.mp4"]
+    }
+  ]
+} 

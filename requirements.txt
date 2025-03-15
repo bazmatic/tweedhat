@@ -1,0 +1,5 @@
+selenium==4.15.2
+requests==2.31.0
+pygame==2.6.1
+mutagen==1.47.0
+webdriver-manager==4.0.1 
