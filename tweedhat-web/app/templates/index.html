@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10 text-center">
+        <h1 class="display-4 mb-4">Welcome to TweedHat</h1>
+        <p class="lead mb-5">
+            A powerful tool for scraping tweets from X.com (formerly Twitter) and converting them to audio using ElevenLabs voice synthesis.
+        </p>
+        
+        <div class="row mb-5">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-search fa-3x mb-3 text-primary"></i>
+                        <h3 class="card-title">Scrape Tweets</h3>
+                        <p class="card-text">Easily scrape tweets from any public X.com profile with our powerful scraping engine.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-microphone-alt fa-3x mb-3 text-primary"></i>
+                        <h3 class="card-title">Convert to Audio</h3>
+                        <p class="card-text">Transform tweets into lifelike speech using ElevenLabs' advanced voice synthesis technology.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-robot fa-3x mb-3 text-primary"></i>
+                        <h3 class="card-title">AI Image Description</h3>
+                        <p class="card-text">Use AI to automatically describe images in tweets for a complete audio experience.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="d-grid gap-2 d-md-block">
+            <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg me-md-2">Get Started</a>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary btn-lg">Login</a>
+        </div>
+    </div>
+</div>
+{% endblock %} 

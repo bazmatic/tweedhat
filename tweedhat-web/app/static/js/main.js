@@ -1,6 +1,6 @@
 // Main JavaScript file for TweedHat web application
 
-// Document ready function
+//  Document ready function
 $(document).ready(function() {
     // Initialize tooltips
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="mb-4">Settings</h1>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">API Keys and Credentials</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('main.settings') }}">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-4">
+                        <h6>ElevenLabs (Required for Text-to-Speech)</h6>
+                        <div class="mb-3">
+                            {{ form.elevenlabs_api_key.label(class="form-label") }}
+                            {{ form.elevenlabs_api_key(class="form-control", placeholder="Enter your ElevenLabs API key") }}
+                            {% for error in form.elevenlabs_api_key.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                            <div class="form-text">
+                                Get your API key from <a href="https://elevenlabs.io/app/account" target="_blank">ElevenLabs</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h6>Anthropic (Optional, for Image Description)</h6>
+                        <div class="mb-3">
+                            {{ form.anthropic_api_key.label(class="form-label") }}
+                            {{ form.anthropic_api_key(class="form-control", placeholder="Enter your Anthropic API key") }}
+                            {% for error in form.anthropic_api_key.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                            <div class="form-text">
+                                Get your API key from <a href="https://console.anthropic.com/" target="_blank">Anthropic</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h6>Twitter/X Credentials (Optional, improves scraping success)</h6>
+                        <div class="mb-3">
+                            {{ form.twitter_email.label(class="form-label") }}
+                            {{ form.twitter_email(class="form-control", placeholder="Enter your Twitter/X email") }}
+                            {% for error in form.twitter_email.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.twitter_password.label(class="form-label") }}
+                            {{ form.twitter_password(class="form-control", placeholder="Enter your Twitter/X password") }}
+                            {% for error in form.twitter_password.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Job Details: @{{ job.target_twitter_handle }}</h1>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+            </a>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Job Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Status:</strong> 
+                            {% if job.status == 'pending' %}
+                            <span class="badge bg-secondary">Pending</span>
+                            {% elif job.status == 'scraping' %}
+                            <span class="badge bg-info">Scraping</span>
+                            {% elif job.status == 'scraped' %}
+                            <span class="badge bg-info">Scraped</span>
+                            {% elif job.status == 'generating_audio' %}
+                            <span class="badge bg-info">Generating Audio</span>
+                            {% elif job.status == 'processing' %}
+                            <span class="badge bg-info">Processing</span>
+                            {% elif job.status == 'completed' %}
+                            <span class="badge bg-success">Completed</span>
+                            {% elif job.status == 'failed' %}
+                            <span class="badge bg-danger">Failed</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ job.status }}</span>
+                            {% endif %}
+                        </p>
+                        <p><strong>Created:</strong> 
+                            {% if job.created_at is string %}
+                                {{ job.created_at }}
+                            {% else %}
+                                {{ job.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% endif %}
+                        </p>
+                        <p><strong>Updated:</strong> 
+                            {% if job.updated_at is string %}
+                                {{ job.updated_at }}
+                            {% else %}
+                                {{ job.updated_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Twitter Handle:</strong> @{{ job.target_twitter_handle }}</p>
+                        <p><strong>Max Tweets:</strong> {{ job.max_tweets }}</p>
+                        <p><strong>Describe Images:</strong> {{ 'Yes' if job.describe_images else 'No' }}</p>
+                        {% if job.status_message %}
+                        <p><strong>Status Message:</strong> {{ job.status_message }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% if job.status in ['processing', 'completed'] and job.audio_files %}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Audio Files</h5>
+            </div>
+            <div class="card-body">
+                {% if job.status == 'completed' and job.audio_files|length > 0 %}
+                <div class="mb-4">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h5 class="card-title">Tweet Player</h5>
+                            <div class="tweet-player">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="me-3">
+                                        <button id="playAllButton" class="btn btn-primary">
+                                            <i class="fas fa-play me-1"></i>Play All
+                                        </button>
+                                        <button id="pauseButton" class="btn btn-secondary" disabled>
+                                            <i class="fas fa-pause me-1"></i>Pause
+                                        </button>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex align-items-center">
+                                            <span id="currentTweetIndex" class="me-2">0</span>
+                                            <span class="me-2">/</span>
+                                            <span id="totalTweets" class="me-2">{{ job.audio_files|length }}</span>
+                                        </div>
+                                        <div class="progress">
+                                            <div id="playbackProgress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p id="nowPlayingText" class="text-muted">Click Play All to start playback</p>
+                                </div>
+                                <audio id="audioPlayer" style="display: none;"></audio>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Filename</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for audio_file in job.audio_files %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ audio_file.split('/')[-1] }}</td>
+                                <td>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-outline-secondary play-tweet-btn" 
+                                                data-filename="{{ audio_file.split('/')[-1] }}"
+                                                data-index="{{ loop.index }}">
+                                            <i class="fas fa-play me-1"></i>Play
+                                        </button>
+                                        <a href="{{ url_for('jobs.download_audio', job_id=job.id, filename=audio_file.split('/')[-1]) }}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-download me-1"></i>Download
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% elif job.status == 'failed' %}
+        <div class="alert alert-danger">
+            <h5 class="alert-heading">Job Failed</h5>
+            <p>{{ job.status_message or 'An unknown error occurred.' }}</p>
+            <hr>
+            <p class="mb-0">
+                <a href="{{ url_for('jobs.new_job') }}" class="btn btn-outline-danger">Try Again</a>
+            </p>
+        </div>
+        {% elif job.status in ['pending', 'scraping', 'scraped', 'generating_audio', 'processing'] %}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Job Progress</h5>
+            </div>
+            <div class="card-body">
+                <div class="progress mb-3">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         style="width: {{ job.progress }}%" 
+                         aria-valuenow="{{ job.progress }}" 
+                         aria-valuemin="0" 
+                         aria-valuemax="100">
+                        {{ job.progress }}%
+                    </div>
+                </div>
+                <p class="text-center">
+                    <i class="fas fa-spinner fa-spin me-2"></i>
+                    {% if job.status == 'pending' %}
+                    Job is queued and waiting to start...
+                    {% elif job.status == 'scraping' %}
+                    Scraping tweets from @{{ job.target_twitter_handle }}...
+                    {% if job.progress_details and job.progress_details.get('stage') %}
+                    <br><small class="text-muted">Stage: {{ job.progress_details.get('stage')|replace('_', ' ')|title }}</small>
+                    {% endif %}
+                    {% elif job.status == 'scraped' %}
+                    Tweets scraped, preparing to generate audio...
+                    {% if job.progress_details and job.progress_details.get('tweet_count') %}
+                    <br><small class="text-muted">Scraped {{ job.progress_details.get('tweet_count') }} tweets</small>
+                    {% endif %}
+                    {% elif job.status == 'generating_audio' %}
+                    Generating audio from tweets...
+                    {% if job.progress_details and job.progress_details.get('stage') %}
+                    <br><small class="text-muted">Stage: {{ job.progress_details.get('stage')|replace('_', ' ')|title }}</small>
+                    {% endif %}
+                    {% elif job.status == 'processing' %}
+                    Processing tweets: {{ job.status_message or 'Please wait...' }}
+                    {% if job.progress_details %}
+                    <br>
+                    {% if job.progress_details.get('current_tweet') and job.progress_details.get('total_tweets') %}
+                    <small class="text-muted">Tweet {{ job.progress_details.get('current_tweet') }}/{{ job.progress_details.get('total_tweets') }}</small>
+                    {% endif %}
+                    {% if job.progress_details.get('current_action') %}
+                    <small class="text-muted"> - {{ job.progress_details.get('current_action')|replace('_', ' ')|title }}</small>
+                    {% endif %}
+                    {% endif %}
+                    {% endif %}
+                </p>
+                
+                {% if job.progress_details %}
+                <div class="mt-4">
+                    <h6>Detailed Progress Information</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Key</th>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for key, value in job.progress_details.items() %}
+                                {% if not key.startswith('status_') %}
+                                <tr>
+                                    <td>{{ key|replace('_', ' ')|title }}</td>
+                                    <td>
+                                        {% if value is mapping %}
+                                            <pre>{{ value|tojson(indent=2) }}</pre>
+                                        {% elif value is string and value.startswith('{') %}
+                                            <pre>{{ value }}</pre>
+                                        {% else %}
+                                            {{ value }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="text-center mt-3">
+                    <button id="refreshButton" class="btn btn-outline-primary">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh Status
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // Auto-refresh for in-progress jobs
+        var jobStatus = "{{ job.status }}";
+        var jobProgress = {{ job.progress|default(0) }};
+        var statusUrl = "{{ url_for('jobs.status', job_id=job.id) }}";
+        
+        if (['pending', 'scraping', 'scraped', 'generating_audio', 'processing'].indexOf(jobStatus) !== -1) {
+            let refreshInterval = setInterval(function() {
+                $.get(statusUrl, function(data) {
+                    if (data.status !== jobStatus || data.progress !== jobProgress) {
+                        location.reload();
+                    }
+                });
+            }, 3000); // Check every 3 seconds
+        }
+        
+        // Manual refresh button
+        $("#refreshButton").click(function() {
+            location.reload();
+        });
+        
+        // Tweet player functionality
+        if (jobStatus === 'completed') {
+            const jobId = "{{ job.id }}";
+            const audioPlayer = document.getElementById('audioPlayer');
+            const playAllButton = document.getElementById('playAllButton');
+            const pauseButton = document.getElementById('pauseButton');
+            const currentTweetIndex = document.getElementById('currentTweetIndex');
+            const totalTweets = document.getElementById('totalTweets');
+            const playbackProgress = document.getElementById('playbackProgress');
+            const nowPlayingText = document.getElementById('nowPlayingText');
+            
+            let audioFiles = [];
+            let currentIndex = 0;
+            let isPlaying = false;
+            
+            // Load audio files data
+            function loadAudioFiles() {
+                $.get(`/jobs/${jobId}/audio_files`, function(data) {
+                    audioFiles = data.audio_files;
+                    totalTweets.textContent = audioFiles.length;
+                });
+            }
+            
+            // Play a specific tweet
+            function playTweet(index) {
+                if (index >= audioFiles.length) {
+                    // End of playlist
+                    resetPlayer();
+                    return;
+                }
+                
+                currentIndex = index;
+                currentTweetIndex.textContent = index + 1;
+                
+                // Update progress bar
+                const progress = ((index + 1) / audioFiles.length) * 100;
+                playbackProgress.style.width = `${progress}%`;
+                
+                // Update now playing text
+                const filename = audioFiles[index].filename;
+                nowPlayingText.textContent = `Now playing: Tweet ${index + 1} - ${filename}`;
+                
+                // Set audio source and play
+                audioPlayer.src = audioFiles[index].url;
+                audioPlayer.play();
+                
+                // Update button states
+                playAllButton.disabled = true;
+                pauseButton.disabled = false;
+                isPlaying = true;
+                
+                // Highlight the current tweet in the table
+                $('.play-tweet-btn').removeClass('btn-primary').addClass('btn-outline-secondary');
+                $(`.play-tweet-btn[data-index="${index + 1}"]`).removeClass('btn-outline-secondary').addClass('btn-primary');
+            }
+            
+            // Reset player to initial state
+            function resetPlayer() {
+                audioPlayer.pause();
+                audioPlayer.currentTime = 0;
+                audioPlayer.src = '';
+                
+                currentIndex = 0;
+                currentTweetIndex.textContent = '0';
+                playbackProgress.style.width = '0%';
+                nowPlayingText.textContent = 'Click Play All to start playback';
+                
+                playAllButton.disabled = false;
+                pauseButton.disabled = true;
+                isPlaying = false;
+                
+                // Reset all play buttons
+                $('.play-tweet-btn').removeClass('btn-primary').addClass('btn-outline-secondary');
+            }
+            
+            // Event listeners
+            playAllButton.addEventListener('click', function() {
+                if (audioFiles.length > 0) {
+                    playTweet(0);
+                }
+            });
+            
+            pauseButton.addEventListener('click', function() {
+                if (isPlaying) {
+                    audioPlayer.pause();
+                    pauseButton.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
+                    isPlaying = false;
+                } else {
+                    audioPlayer.play();
+                    pauseButton.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+                    isPlaying = true;
+                }
+            });
+            
+            // When a tweet finishes playing, play the next one
+            audioPlayer.addEventListener('ended', function() {
+                playTweet(currentIndex + 1);
+            });
+            
+            // Individual tweet play buttons
+            $('.play-tweet-btn').on('click', function() {
+                const index = parseInt($(this).data('index')) - 1;
+                playTweet(index);
+            });
+            
+            // Load audio files when page loads
+            loadAudioFiles();
+        }
+    });
+</script>
+{% endblock %} 
