@@ -231,13 +231,14 @@ class AIImageDescriber:
             logger.error(f"Error downloading image from {image_url}: {e}")
             return None
     
-    def describe_image(self, image_path_or_url, prompt=None):
+    def describe_image(self, image_path_or_url, prompt=None, tweet_context=None):
         """
         Generate a description of an image using AI.
         
         Args:
             image_path_or_url (str): Path to the image file or URL
             prompt (str, optional): Custom prompt for the AI
+            tweet_context (str, optional): Context from the tweet to help with image description
             
         Returns:
             str: Description of the image
@@ -245,6 +246,10 @@ class AIImageDescriber:
         # Default prompt if none provided
         if not prompt:
             prompt = "Describe this image in detail, focusing on the main subjects and any text visible in the image."
+        
+        # Add tweet context to the prompt if provided
+        if tweet_context:
+            prompt = f"This is an image from a tweet that says: \"{tweet_context}\". {prompt}"
         
         # Check if the input is a URL or a local file path
         if image_path_or_url.startswith(('http://', 'https://')):
