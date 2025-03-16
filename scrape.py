@@ -20,16 +20,28 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from webdriver_manager.chrome import ChromeDriverManager
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("tweet_scraper.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# Set up logging with more detailed configuration
+log_format = '%(asctime)s - %(levelname)s - %(message)s'
+log_file = 'tweet_scraper.log'
+
+# Create a logger
+logger = logging.getLogger('tweet_scraper')
+logger.setLevel(logging.INFO)
+
+# Create handlers
+file_handler = logging.FileHandler(log_file)
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(logging.Formatter(log_format))
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(logging.Formatter(log_format))
+
+# Add handlers to logger
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+logger.info("TweetScraper module initialized")
 
 # Define folder paths
 TWEETS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tweets")
@@ -98,7 +110,20 @@ class TweetScraper:
         
         # Add profile directory if using a profile
         if self.use_profile:
-            chrome_options.add_argument(f"--user-data-dir={self.profile_dir}")
+            # Create a unique profile directory by appending a timestamp
+            import time
+            import random
+            import string
+            
+            # Generate a random string
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+            timestamp = int(time.time())
+            
+            # Create a unique profile directory
+            unique_profile_dir = f"{self.profile_dir}_{timestamp}_{random_suffix}"
+            
+            logger.info(f"Using unique Chrome profile directory: {unique_profile_dir}")
+            chrome_options.add_argument(f"--user-data-dir={unique_profile_dir}")
         
         # Configure headless mode
         if self.headless:
