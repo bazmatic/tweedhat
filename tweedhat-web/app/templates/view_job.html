@@ -142,7 +142,7 @@
         {% elif job.status == 'failed' %}
         <div class="alert alert-danger">
             <h5 class="alert-heading">Job Failed</h5>
-            <p>{{ job.status_message or 'An unknown error occurred.' }}</p>
+            <p>{{ job.error or 'An unknown error occurred.' }}</p>
             <hr>
             <p class="mb-0">
                 <a href="{{ url_for('jobs.new_job') }}" class="btn btn-outline-danger">Try Again</a>

@@ -58,7 +58,9 @@ def scrape_tweets_task(job_id):
         # Get user settings
         user = User.get_by_id(job.user_id)
         if not user:
-            job.update_status("failed", "User not found")
+            error_msg = f"User {job.user_id} not found"
+            logger.error(error_msg)
+            job.update_status("failed", error_msg)
             return
         
         twitter_email = user.get_setting('twitter_email')
@@ -84,8 +86,9 @@ def scrape_tweets_task(job_id):
         tweets = scraper.scrape_tweets()
         
         if not tweets:
-            logger.warning(f"Job {job_id}: No tweets found for @{job.target_twitter_handle}")
-            job.update_status("failed", "Failed to scrape tweets")
+            error_msg = f"No tweets found for @{job.target_twitter_handle}"
+            logger.warning(f"Job {job_id}: {error_msg}")
+            job.update_status("failed", error_msg)
             return
         
         # Save tweets to file
@@ -102,8 +105,18 @@ def scrape_tweets_task(job_id):
         generate_audio_task.delay(job_id)
         
     except Exception as e:
-        logger.error(f"Error scraping tweets: {e}", exc_info=True)
-        job.update_status("failed", str(e))
+        import traceback
+        error_traceback = traceback.format_exc()
+        error_msg = str(e)
+        logger.error(f"Error scraping tweets for job {job_id}: {error_msg}\n{error_traceback}")
+        job.update_status("failed", error_msg)
+        
+        # Make sure to close the browser if it was opened
+        try:
+            if 'scraper' in locals() and hasattr(scraper, 'close'):
+                scraper.close()
+        except Exception as close_error:
+            logger.error(f"Error closing browser for job {job_id}: {close_error}")
 
 
 @shared_task
@@ -129,15 +142,18 @@ def generate_audio_task(job_id):
         # Get user settings
         user = User.get_by_id(job.user_id)
         if not user:
-            job.update_status("failed", "User not found")
+            error_msg = f"User {job.user_id} not found"
+            logger.error(error_msg)
+            job.update_status("failed", error_msg)
             return
         
         elevenlabs_api_key = user.get_setting('elevenlabs_api_key')
         anthropic_api_key = user.get_setting('anthropic_api_key')
         
         if not elevenlabs_api_key:
-            logger.error(f"Job {job_id}: ElevenLabs API key not found")
-            job.update_status("failed", "ElevenLabs API key not found")
+            error_msg = "ElevenLabs API key not found"
+            logger.error(f"Job {job_id}: {error_msg}")
+            job.update_status("failed", error_msg)
             return
         
         # Create output directory for audio files
@@ -161,14 +177,16 @@ def generate_audio_task(job_id):
         logger.info(f"Job {job_id}: Loading tweets from {job.tweet_file}")
         data = reader.load_tweets()
         if not data:
-            logger.error(f"Job {job_id}: Failed to load tweets from {job.tweet_file}")
-            job.update_status("failed", "Failed to load tweets")
+            error_msg = f"Failed to load tweets from {job.tweet_file}"
+            logger.error(f"Job {job_id}: {error_msg}")
+            job.update_status("failed", error_msg)
             return
         
         tweets = data.get('tweets', [])
         if not tweets:
-            logger.error(f"Job {job_id}: No tweets found in {job.tweet_file}")
-            job.update_status("failed", "No tweets found")
+            error_msg = f"No tweets found in {job.tweet_file}"
+            logger.error(f"Job {job_id}: {error_msg}")
+            job.update_status("failed", error_msg)
             return
         
         logger.info(f"Job {job_id}: Processing {len(tweets)} tweets for audio generation")
@@ -204,7 +222,10 @@ def generate_audio_task(job_id):
                 job.update_status("processing", f"Processed {i+1}/{len(tweets)} tweets")
                 
             except Exception as e:
-                logger.error(f"Job {job_id}: Error processing tweet {i+1}: {e}", exc_info=True)
+                import traceback
+                error_traceback = traceback.format_exc()
+                error_msg = f"Error processing tweet {i+1}: {str(e)}"
+                logger.error(f"Job {job_id}: {error_msg}\n{error_traceback}")
                 # Continue with next tweet
         
         # Update job status
@@ -212,8 +233,11 @@ def generate_audio_task(job_id):
         job.update_status("completed")
         
     except Exception as e:
-        logger.error(f"Error generating audio: {e}", exc_info=True)
-        job.update_status("failed", str(e))
+        import traceback
+        error_traceback = traceback.format_exc()
+        error_msg = str(e)
+        logger.error(f"Error generating audio for job {job_id}: {error_msg}\n{error_traceback}")
+        job.update_status("failed", error_msg)
 
 
 # Import User model here to avoid circular imports
