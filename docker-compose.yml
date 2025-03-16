@@ -1,0 +1,46 @@
+services:
+  web:
+    build: .
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./tweets:/app/tweets
+      - ./images:/app/images
+      - ./tweet_audio:/app/tweet_audio
+      - ./tweedhat-web/data:/app/tweedhat-web/data
+    env_file:
+      - ./tweedhat-web/.env.production
+    depends_on:
+      - redis
+    restart: unless-stopped
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+
+  celery:
+    build: .
+    command: celery -A run.celery worker --loglevel=info
+    volumes:
+      - ./tweets:/app/tweets
+      - ./images:/app/images
+      - ./tweet_audio:/app/tweet_audio
+      - ./tweedhat-web/data:/app/tweedhat-web/data
+    env_file:
+      - ./tweedhat-web/.env.production
+    depends_on:
+      - redis
+      - web
+    restart: unless-stopped
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    working_dir: /app/tweedhat-web
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data: 
