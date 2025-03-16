@@ -5,9 +5,10 @@ import time
 import logging
 from datetime import datetime
 from celery import shared_task
+from pydub import AudioSegment
 
 from app import celery
-from app.models import Job
+from app.models import Job, User
 from config import Config
 
 # Set up logging
@@ -238,6 +239,105 @@ def generate_audio_task(job_id):
         error_msg = str(e)
         logger.error(f"Error generating audio for job {job_id}: {error_msg}\n{error_traceback}")
         job.update_status("failed", error_msg)
+
+
+@shared_task
+def combine_audio_files_task(user_id):
+    """
+    Task to combine all audio files from all jobs into a single file.
+    This function can be called directly or as a Celery task.
+    
+    Args:
+        user_id (str): ID of the user
+        
+    Returns:
+        str: Path to the combined audio file, or None if failed
+    """
+    logger.info(f"Starting audio file combination for user {user_id}")
+    
+    # Get the user
+    user = User.get_by_id(user_id)
+    if not user:
+        logger.error(f"User {user_id} not found")
+        return None
+    
+    # Get all jobs for the user
+    jobs = Job.get_by_user_id(user_id)
+    
+    # Collect all audio files from completed jobs
+    all_audio_files = []
+    for job in jobs:
+        if job.status == 'completed' and job.audio_files:
+            # Sort audio files by index (extracted from filename)
+            sorted_files = []
+            for audio_file in job.audio_files:
+                filename = os.path.basename(audio_file)
+                try:
+                    # Extract the index from the filename (format: tweet_INDEX_ID.mp3)
+                    index = int(filename.split('_')[1])
+                    sorted_files.append((index, audio_file))
+                except (IndexError, ValueError):
+                    # If we can't extract the index, just add it to the end
+                    sorted_files.append((999, audio_file))
+            
+            # Sort by index
+            sorted_files.sort(key=lambda x: x[0])
+            
+            # Add to the list of all audio files
+            all_audio_files.extend([file_path for _, file_path in sorted_files])
+    
+    if not all_audio_files:
+        logger.error(f"No audio files found for user {user_id}")
+        return None
+    
+    logger.info(f"Found {len(all_audio_files)} audio files to combine")
+    
+    try:
+        # Create output directory for combined audio file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = os.path.join(Config.AUDIO_DIR, f"combined_{user_id}_{timestamp}")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Output file path
+        output_file = os.path.join(output_dir, f"combined_{timestamp}.mp3")
+        
+        # Combine audio files
+        combined = AudioSegment.empty()
+        
+        for i, audio_file in enumerate(all_audio_files):
+            logger.info(f"Processing file {i+1}/{len(all_audio_files)}: {audio_file}")
+            
+            if not os.path.exists(audio_file):
+                logger.warning(f"File not found: {audio_file}")
+                continue
+            
+            try:
+                # Load audio file
+                audio = AudioSegment.from_mp3(audio_file)
+                
+                # Add a short pause between audio files (500ms)
+                if i > 0:
+                    combined += AudioSegment.silent(duration=500)
+                
+                # Append to combined audio
+                combined += audio
+                
+                logger.info(f"Added file {i+1} to combined audio")
+            except Exception as e:
+                logger.error(f"Error processing audio file {audio_file}: {e}")
+        
+        # Export combined audio
+        logger.info(f"Exporting combined audio to {output_file}")
+        combined.export(output_file, format="mp3")
+        
+        # Update user's combined audio file
+        user.set_combined_audio_file(output_file)
+        
+        logger.info(f"Combined audio file created successfully: {output_file}")
+        return output_file
+    except Exception as e:
+        logger.error(f"Error combining audio files: {e}", exc_info=True)
+        return None
 
 
 # Import User model here to avoid circular imports

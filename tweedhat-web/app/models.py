@@ -16,13 +16,14 @@ class User(UserMixin):
     """User model for authentication and storing user data in JSON files."""
     
     def __init__(self, id=None, username=None, password_hash=None, created_at=None, 
-                 last_login=None, settings=None):
+                 last_login=None, settings=None, combined_audio_file=None):
         self.id = id or str(uuid.uuid4())
         self.username = username
         self.password_hash = password_hash
         self.created_at = created_at or datetime.now().isoformat()
         self.last_login = last_login or datetime.now().isoformat()
         self.settings = settings or {}
+        self.combined_audio_file = combined_audio_file
     
     def set_password(self, password):
         """Set password hash."""
@@ -44,7 +45,8 @@ class User(UserMixin):
             'password_hash': self.password_hash,
             'created_at': self.created_at,
             'last_login': self.last_login,
-            'settings': self.settings
+            'settings': self.settings,
+            'combined_audio_file': self.combined_audio_file
         }
         
         # Store settings as plaintext
@@ -68,6 +70,11 @@ class User(UserMixin):
         self.settings[key] = value
         self.save()
     
+    def set_combined_audio_file(self, file_path):
+        """Set the combined audio file path."""
+        self.combined_audio_file = file_path
+        self.save()
+    
     @staticmethod
     def get_by_id(user_id):
         """Get a user by ID."""
@@ -84,7 +91,8 @@ class User(UserMixin):
             password_hash=data['password_hash'],
             created_at=data['created_at'],
             last_login=data['last_login'],
-            settings=data['settings']
+            settings=data['settings'],
+            combined_audio_file=data.get('combined_audio_file')
         )
     
     @staticmethod
@@ -107,7 +115,8 @@ class User(UserMixin):
                         password_hash=data['password_hash'],
                         created_at=data['created_at'],
                         last_login=data['last_login'],
-                        settings=data['settings']
+                        settings=data['settings'],
+                        combined_audio_file=data.get('combined_audio_file')
                     )
         
         return None
