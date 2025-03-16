@@ -270,9 +270,12 @@ class TweetReader:
                 actual_url = preview_link.split("video_preview:", 1)[1]
                 try:
                     logger.info(f"Describing video preview image: {actual_url}")
+                    # Truncate tweet text to 200 characters for context
+                    truncated_text = text[:200] + "..." if len(text) > 200 else text
                     description = self.image_describer.describe_image(
                         actual_url, 
-                        prompt="This is a preview frame from a video in a tweet. Describe what you see in this frame and what the video might be about. Keep it brief but informative."
+                        prompt="This is a preview frame from a video in a tweet. Describe what you see in this frame and what the video might be about. Keep it brief but informative.",
+                        tweet_context=truncated_text
                     )
                     
                     # Check if we got a valid description
@@ -301,9 +304,12 @@ class TweetReader:
             for i, media_link in enumerate(regular_images):
                 try:
                     logger.info(f"Describing image: {media_link}")
+                    # Truncate tweet text to 200 characters for context
+                    truncated_text = text[:200] + "..." if len(text) > 200 else text
                     description = self.image_describer.describe_image(
                         media_link,
-                        prompt="This is an image from a tweet. Describe what you see in this image concisely but with important details."
+                        prompt="This is an image from a tweet. Describe what you see in this image concisely but with important details.",
+                        tweet_context=truncated_text
                     )
                     
                     # Check if we got a valid description

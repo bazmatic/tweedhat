@@ -42,7 +42,12 @@
                     </div>
                     
                     <div class="mb-4">
-                        <h6>Twitter/X Credentials (Optional, improves scraping success)</h6>
+                        <h6>Twitter/X Credentials (Optional)</h6>
+                        <div class="form-text mb-2">
+                            We primarily use Nitter to scrape tweets without requiring authentication. 
+                            These credentials are only used as a fallback if Nitter is unavailable.
+                            For the most reliable experience, you can provide your Twitter/X login details.
+                        </div>
                         <div class="mb-3">
                             {{ form.twitter_email.label(class="form-label") }}
                             {{ form.twitter_email(class="form-control", placeholder="Enter your Twitter/X email") }}
