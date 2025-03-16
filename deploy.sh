@@ -25,11 +25,18 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Check if Docker Compose is installed
-if ! command -v docker compose &> /dev/null; then
-    echo -e "${RED}Error: Docker Compose is not installed. Please install Docker Compose first.${NC}"
-    exit 1
+# Determine which Docker Compose command to use
+DOCKER_COMPOSE="docker compose"
+if ! docker compose version &> /dev/null; then
+    if command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE="docker-compose"
+    else
+        echo -e "${RED}Error: Neither 'docker compose' nor 'docker-compose' is available. Please install Docker Compose.${NC}"
+        exit 1
+    fi
 fi
+
+echo -e "${GREEN}Using Docker Compose command: ${DOCKER_COMPOSE}${NC}"
 
 # Check if the .env.production file exists
 if [ ! -f "tweedhat-web/.env.production" ]; then
@@ -48,7 +55,7 @@ fi
 
 # Generate secure keys for production
 echo -e "${BLUE}Generating secure keys for production...${NC}"
-python generate_production_keys.py
+python3 generate_production_keys.py
 
 # Create necessary directories if they don't exist
 echo -e "${BLUE}Creating necessary directories...${NC}"
@@ -56,17 +63,17 @@ mkdir -p tweets images tweet_audio tweedhat-web/data
 
 # Build and start the Docker containers
 echo -e "${BLUE}Building and starting Docker containers...${NC}"
-docker compose down
-docker compose up -d --build
+$DOCKER_COMPOSE down
+$DOCKER_COMPOSE up -d --build
 
 # Check if containers are running
 echo -e "${BLUE}Checking if containers are running...${NC}"
-if docker compose ps | grep -q "Up"; then
+if $DOCKER_COMPOSE ps | grep -q "Up"; then
     echo -e "${GREEN}Deployment successful! TweedHat is now running.${NC}"
     echo -e "You can access the application at: http://localhost:5001"
-    echo -e "To view logs, run: docker compose logs -f"
+    echo -e "To view logs, run: $DOCKER_COMPOSE logs -f"
 else
-    echo -e "${RED}Deployment failed. Please check the logs with: docker compose logs${NC}"
+    echo -e "${RED}Deployment failed. Please check the logs with: $DOCKER_COMPOSE logs${NC}"
     exit 1
 fi
 
