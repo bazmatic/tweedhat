@@ -7,6 +7,8 @@ import getpass
 import random
 import re
 import requests
+import tempfile
+import shutil
 from pathlib import Path
 from datetime import datetime
 from selenium import webdriver
@@ -46,10 +48,12 @@ logger.info("TweetScraper module initialized")
 # Define folder paths
 TWEETS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tweets")
 IMAGES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
+TEMP_SCREENSHOTS_FOLDER = os.path.join(tempfile.gettempdir(), "tweedhat_screenshots")
 
 # Create folders if they don't exist
 os.makedirs(TWEETS_FOLDER, exist_ok=True)
 os.makedirs(IMAGES_FOLDER, exist_ok=True)
+os.makedirs(TEMP_SCREENSHOTS_FOLDER, exist_ok=True)
 
 class TweetScraper:
     def __init__(self, username, headless=True, max_tweets=None, email=None, password=None, use_profile=True, profile_dir=None, user_agent=None):
@@ -333,8 +337,9 @@ class TweetScraper:
             logger.info("Navigated to login page")
             
             # Take a screenshot of the login page
-            self.driver.save_screenshot("login_page.png")
-            logger.info("Saved login page screenshot")
+            screenshot_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, "login_page.png")
+            self.driver.save_screenshot(screenshot_path)
+            logger.info(f"Saved login page screenshot to {screenshot_path}")
             
             # Wait for the login form to load
             try:
@@ -352,10 +357,12 @@ class TweetScraper:
                     logger.info("Found alternative login input")
                 except TimeoutException:
                     logger.error("Could not find any login input field")
-                    self.driver.save_screenshot("login_form_not_found.png")
-                    with open("login_page_source.html", "w", encoding="utf-8") as f:
+                    screenshot_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, "login_form_not_found.png")
+                    self.driver.save_screenshot(screenshot_path)
+                    page_source_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, "login_page_source.html")
+                    with open(page_source_path, "w", encoding="utf-8") as f:
                         f.write(self.driver.page_source)
-                    logger.info("Saved login page source for debugging")
+                    logger.info(f"Saved login page source for debugging to {page_source_path} and screenshot to {screenshot_path}")
                     return False
             
             # Enter email/username with human-like typing
@@ -389,8 +396,9 @@ class TweetScraper:
             logger.info("Submitted email/username")
             
             # Save a screenshot after submitting email
-            self.driver.save_screenshot("after_email_submit.png")
-            logger.info("Saved screenshot after email submission")
+            screenshot_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, "after_email_submit.png")
+            self.driver.save_screenshot(screenshot_path)
+            logger.info(f"Saved screenshot after email submission to {screenshot_path}")
             
             # Check for verification or unusual activity challenges
             try:
@@ -399,8 +407,9 @@ class TweetScraper:
                     EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Verify your identity')]"))
                 )
                 logger.warning("Identity verification required. X.com is asking for additional verification.")
-                self.driver.save_screenshot("verification_required.png")
-                logger.info("Saved verification screen screenshot")
+                screenshot_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, "verification_required.png")
+                self.driver.save_screenshot(screenshot_path)
+                logger.info(f"Saved verification screen screenshot to {screenshot_path}")
                 logger.info("Please log in manually once to verify your account, then try again.")
                 return False
             except TimeoutException:
@@ -412,7 +421,9 @@ class TweetScraper:
                 confirm_email = self.driver.find_element(By.XPATH, "//*[contains(text(), 'confirm your email')]")
                 if confirm_email:
                     logger.warning("X.com is asking to confirm your email.")
-                    self.driver.save_screenshot("confirm_email.png")
+                    screenshot_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, "confirm_email.png")
+                    self.driver.save_screenshot(screenshot_path)
+                    logger.info(f"Saved confirm email screenshot to {screenshot_path}")
                     
                     # Try to find and click the "Use phone instead" option
                     try:
@@ -466,10 +477,12 @@ class TweetScraper:
                     logger.info("Found password field using alternative selector")
                 except NoSuchElementException:
                     # Save the current page for debugging
-                    self.driver.save_screenshot("password_field_not_found.png")
-                    with open("password_page_source.html", "w", encoding="utf-8") as f:
+                    screenshot_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, "password_field_not_found.png")
+                    self.driver.save_screenshot(screenshot_path)
+                    page_source_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, "password_page_source.html")
+                    with open(page_source_path, "w", encoding="utf-8") as f:
                         f.write(self.driver.page_source)
-                    logger.info("Saved page source when password field not found")
+                    logger.info(f"Saved page source when password field not found to {page_source_path} and screenshot to {screenshot_path}")
                     
                     # Check if we're on a challenge page
                     if "challenge" in self.driver.current_url:
@@ -511,7 +524,9 @@ class TweetScraper:
             time.sleep(5)  # Give some time for the login to process
             
             # Save screenshot after login attempt
-            self.driver.save_screenshot("after_login_attempt.png")
+            screenshot_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, "after_login_attempt.png")
+            self.driver.save_screenshot(screenshot_path)
+            logger.info(f"Saved screenshot after login attempt to {screenshot_path}")
             
             # Check if login was successful by looking for the home timeline
             try:
@@ -531,7 +546,7 @@ class TweetScraper:
                 logger.error("Login failed - could not find home timeline")
                 
                 # Take a screenshot for debugging
-                screenshot_path = "login_failed.png"
+                screenshot_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, "login_failed.png")
                 self.driver.save_screenshot(screenshot_path)
                 logger.info(f"Saved login failure screenshot to {screenshot_path}")
                 
@@ -604,7 +619,7 @@ class TweetScraper:
             logger.info(f"Navigated to {self.nitter_url}")
             
             # Take a screenshot for debugging
-            screenshot_path = f"{self.username}_nitter.png"
+            screenshot_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, f"{self.username}_nitter.png")
             self.driver.save_screenshot(screenshot_path)
             logger.info(f"Saved nitter screenshot to {screenshot_path}")
             
@@ -672,7 +687,7 @@ class TweetScraper:
             logger.info(f"Page title: {self.driver.title}")
             
             # Take a screenshot for debugging
-            screenshot_path = f"{self.username}_page_load.png"
+            screenshot_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, f"{self.username}_page_load.png")
             self.driver.save_screenshot(screenshot_path)
             logger.info(f"Saved screenshot to {screenshot_path}")
             
@@ -758,8 +773,9 @@ class TweetScraper:
                     logger.info(f"Navigated to {self.profile_url} with mobile user agent")
                     
                     # Take a screenshot for debugging
-                    self.driver.save_screenshot(f"{self.username}_mobile_view.png")
-                    logger.info(f"Saved mobile view screenshot")
+                    screenshot_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, f"{self.username}_mobile_view.png")
+                    self.driver.save_screenshot(screenshot_path)
+                    logger.info(f"Saved mobile view screenshot to {screenshot_path}")
                     
                     # Check if we still have JavaScript disabled message
                     if "JavaScript is not available" in self.driver.page_source:
@@ -794,10 +810,11 @@ class TweetScraper:
                         elif "Something went wrong" in self.driver.page_source:
                             logger.error("X.com is showing 'Something went wrong' error")
                         
-                        # Log the page source for debugging
-                        with open(f"{self.username}_page_source.html", "w", encoding="utf-8") as f:
+                        # Save the page source for debugging
+                        page_source_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, f"{self.username}_page_source.html")
+                        with open(page_source_path, "w", encoding="utf-8") as f:
                             f.write(self.driver.page_source)
-                        logger.info(f"Saved page source to {self.username}_page_source.html")
+                        logger.info(f"Saved page source to {page_source_path}")
                         
                         return []
                 except Exception as e:
@@ -1205,11 +1222,28 @@ class TweetScraper:
             return None
     
     def close(self):
-        """Close the WebDriver"""
+        """Close the WebDriver and clean up temporary files"""
         logger.info("Closing WebDriver")
         try:
             self.driver.quit()
             logger.info("WebDriver closed successfully")
+            
+            # Clean up temporary screenshots and HTML files
+            try:
+                # Only remove files for this username to avoid conflicts with other instances
+                for filename in os.listdir(TEMP_SCREENSHOTS_FOLDER):
+                    if filename.startswith(self.username) or filename in [
+                        "login_page.png", "login_form_not_found.png", "after_email_submit.png",
+                        "verification_required.png", "confirm_email.png", "password_field_not_found.png",
+                        "after_login_attempt.png", "login_failed.png", "login_page_source.html",
+                        "password_page_source.html"
+                    ]:
+                        file_path = os.path.join(TEMP_SCREENSHOTS_FOLDER, filename)
+                        if os.path.isfile(file_path):
+                            os.remove(file_path)
+                logger.info(f"Cleaned up temporary files for {self.username}")
+            except Exception as e:
+                logger.warning(f"Error cleaning up temporary files: {e}")
         except Exception as e:
             logger.error(f"Error closing WebDriver: {e}")
 
