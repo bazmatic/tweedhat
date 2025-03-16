@@ -6,7 +6,7 @@ import requests
 
 from app.models import User, Job
 from app.forms import LoginForm, RegistrationForm, SettingsForm, NewJobForm
-from app.tasks import scrape_tweets_task, generate_audio_task
+from app.tasks import scrape_tweets_task, generate_audio_task, combine_audio_files_task
 from config import Config
 
 # Create blueprints
@@ -30,7 +30,53 @@ def dashboard():
     """User dashboard."""
     # Get user's recent jobs
     jobs = Job.get_by_user_id(current_user.id)
-    return render_template('dashboard.html', title='Dashboard', jobs=jobs)
+    return render_template('dashboard.html', title='Dashboard', jobs=jobs, combined_audio_file=current_user.combined_audio_file)
+
+
+@main_bp.route('/combine-audio', methods=['POST'])
+@login_required
+def combine_audio_files():
+    """Combine all audio files from all jobs into a single file."""
+    # Get all jobs for the user
+    jobs = Job.get_by_user_id(current_user.id)
+    
+    # Check if there are any completed jobs with audio files
+    has_audio_files = False
+    for job in jobs:
+        if job.status == 'completed' and job.audio_files:
+            has_audio_files = True
+            break
+    
+    if not has_audio_files:
+        return jsonify({'success': False, 'error': 'No audio files found in your jobs.'}), 400
+    
+    try:
+        # Start the task to combine audio files
+        # We'll run this synchronously for immediate feedback
+        output_file = combine_audio_files_task(current_user.id)
+        
+        if output_file:
+            return jsonify({
+                'success': True, 
+                'file_path': output_file,
+                'message': 'Audio files combined successfully!'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to combine audio files.'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@main_bp.route('/download-combined-audio')
+@login_required
+def download_combined_audio():
+    """Download the combined audio file."""
+    if not current_user.combined_audio_file or not os.path.exists(current_user.combined_audio_file):
+        flash('Combined audio file not found.', 'danger')
+        return redirect(url_for('main.dashboard'))
+    
+    filename = os.path.basename(current_user.combined_audio_file)
+    return send_file(current_user.combined_audio_file, as_attachment=True, download_name=f"tweedhat_combined_{filename}")
 
 
 @main_bp.route('/settings', methods=['GET', 'POST'])

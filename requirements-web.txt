@@ -20,4 +20,5 @@ redis==5.0.1
 gunicorn==21.2.0
 cryptography==41.0.7
 email-validator==2.1.0
-Flask-Limiter==3.5.0 
+Flask-Limiter==3.5.0
+pydub==0.25.1 
